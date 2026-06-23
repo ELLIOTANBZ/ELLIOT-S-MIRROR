@@ -220,8 +220,11 @@ def refresh_course_catalogue():
 @login_required
 def generate_recommendations():
     visible, officer = resolve_visible_officer()
-    count = generate_training_recommendations(officer["id"])
-    flash(f"Generated {count} course recommendations.")
+    try:
+        count = generate_training_recommendations(officer["id"])
+        flash(f"Generated {count} course recommendations.")
+    except Exception as error:
+        flash(f"Could not generate recommendations: {error}")
     return redirect(url_for("training_page"))
 
 

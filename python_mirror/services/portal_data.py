@@ -805,6 +805,11 @@ def course_matches_analysis(course: dict[str, str], analysis: dict) -> int:
 ## 5. Insert new recommendations into training_recommendations
 ## 6. Return number inserted
 def generate_training_recommendations(officer_id: str) -> int:
+    if not ai_is_configured():
+        raise RuntimeError(
+            "AI is not configured yet. Fill AI_PROVIDER and the matching API settings in python_mirror/.env."
+        )
+
     analysis = analyse_officer(officer_id, use_ai=ai_is_configured())
 
     courses = load_course_catalogue()

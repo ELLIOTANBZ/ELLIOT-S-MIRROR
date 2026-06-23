@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Dashboard</p>
+    <h1>{{ officer.name }}</h1>
+    <p>Your current career position, recent performance, and recommended next steps.</p>
+  </div>
+  {% if logged_in_user.role == "Admin" %}
+  <form method="get" class="selector">
+    <select name="officer_id" onchange="this.form.submit()">
+      {% for user in users %}
+      <option value="{{ user.id }}" {% if user.id==officer.id %}selected{% endif %}>
+        {{ user.name }} · {{ user.role }}
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</header>
+
+<section class="panel career-pathway-card">
+  <div class="career-card">
+    <p class="eyebrow">Current Role</p>
+    <div class="role-title-box">
+      <div class="row-between">
+        <h2>{{ data.career.profile.current_role }}</h2>
+        <span class="status-badge">{{ data.career.stage }}</span>
+      </div>
+      <span>Your current position</span>
+    </div>
+    <dl class="detail-list">
+      <div>
+        <dt>Time in role</dt>
+        <dd>{{ data.career.profile.years_in_role }} years</dd>
+      </div>
+      <div>
+        <dt>Readiness</dt>
+        <dd>{{ data.career.readiness_score }}%</dd>
+      </div>
+      <div>
+        <dt>Team</dt>
+        <dd>{{ data.career.profile.team_name }}</dd>
+      </div>
+    </dl>
+    <h3>Key responsibilities</h3>
+    <ul class="plain-list">
+      {% for item in data.career.profile.responsibilities %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="career-arrow" aria-hidden="true">→</div>
+
+  <div class="career-card target-card">
+    <p class="eyebrow">Target Role</p>
+    <div class="role-title-box target-role-title">
+      <h2>{{ data.career.profile.target_role }}</h2>
+      <span>Your next career goal</span>
+    </div>
+    <dl class="detail-list">
+      <div>
+        <dt>Expected tenure</dt>
+        <dd>{{ data.career.profile.expected_tenure_years }} years</dd>
+      </div>
+      <div>
+        <dt>Readiness threshold</dt>
+        <dd>85 score</dd>
+      </div>
+    </dl>
+    <h3>Key responsibilities</h3>
+    <ul class="plain-list">
+      {% for item in data.career.profile.target_responsibilities %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="feedback-grid">
+  <article class="panel feedback-card">
+    <p class="eyebrow">AI Feedback Summary</p>
+    <h2>{{ data.feedback.overall_level }} level</h2>
+    <p>
+      Audit average:
+      {{ "%.1f"|format(data.feedback.summary.average_audit_score) if data.feedback.summary.average_audit_score is not
+      none else "No data" }}.
+      Customer rating:
+      {{ "%.1f"|format(data.feedback.summary.average_ess_rating) if data.feedback.summary.average_ess_rating is not none
+      else "No data" }}.
+    </p>
+  </article>
+  <article class="panel feedback-card">
+    <p class="eyebrow">Recommended Next Actions</p>
+    <ul class="plain-list">
+      {% for item in data.feedback.learning_pathway[:3] %}<li>{{ item }}</li>{% endfor %}
+    </ul>
+  </article>
+</section>
+
+<section class="feedback-grid">
+  <article class="panel feedback-card">
+    <p class="eyebrow">Strengths</p>
+    <ul class="plain-list">
+      {% for item in data.feedback.strengths %}<li>{{ item }}</li>
+      {% else %}<li>No evidence-backed strengths are available yet.</li>{% endfor %}
+    </ul>
+  </article>
+  <article class="panel feedback-card">
+    <p class="eyebrow">Weaknesses</p>
+    <ul class="plain-list">
+      {% for item in data.feedback.competency_gaps %}<li>{{ item.gap }}</li>
+      {% else %}<li>No Basic-level competency gaps were found.</li>{% endfor %}
+    </ul>
+  </article>
+</section>
+
+<details class="panel timeline-panel">
+  <summary class="timeline-summary">
+    <strong>Progress Timeline</strong>
+    <span>Show recent trend</span>
+  </summary>
+  <div class="row-between timeline-heading">
+    <p class="eyebrow">Recent trend · Past {{ data.timeline_options.months }} months</p>
+  </div>
+  <div class="timeline-controls">
+    <div class="chart-legend">
+      {% for name, label in [("overall", "Overall"), ("core", "Core"), ("functional", "Functional"), ("correspondence",
+      "Correspondence")] %}
+      <label class="legend-{{ name }}"><input type="checkbox" data-series-toggle="{{ name }}" checked> {{ label
+        }}</label>
+      {% endfor %}
+    </div>
+    <form method="get" class="filter-controls">
+      <select name="months" aria-label="Time period">
+        {% for value in [3, 6, 12] %}
+        <option value="{{ value }}" {% if data.timeline_options.months==value %}selected{% endif %}>Past {{ value }}
+          months</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Apply</button>
+    </form>
+  </div>
+  {% if data.timeline %}
+  <div class="line-chart">
+    <svg viewBox="0 0 {{ data.chart_width }} {{ data.chart_height }}" role="img"
+      aria-label="Competency progress line chart">
+      {% for value in [0, 25, 50, 75, 100] %}
+      <line class="chart-gridline" x1="34" y1="{{ 220 - value * 1.8 }}" x2="746" y2="{{ 220 - value * 1.8 }}"></line>
+      <text class="chart-axis-label" x="4" y="{{ 224 - value * 1.8 }}">{{ value }}</text>
+      {% endfor %}
+      {% for series in data.chart_series %}
+      <polyline class="chart-series series-{{ series.name }}" points="{{ series.points }}"></polyline>
+      <g class="chart-dots dots-{{ series.name }}">
+        {% for dot in series.dots %}
+        <circle class="chart-dot {{ 'forecast-dot' if dot.forecast else '' }}" cx="{{ dot.x }}" cy="{{ dot.y }}"
+          r="{{ 5 if dot.forecast else 4 }}">
+          <title>{{ series.name|title }}: {{ dot.value }}{{ " forecast" if dot.forecast else "" }}</title>
+        </circle>
+        {% endfor %}
+      </g>
+      {% endfor %}
+      {% for point in data.timeline %}
+      {% if loop.index0 % 3 == 0 or loop.last %}
+      <text class="chart-date-label" x="{{ point.x }}" y="242">{{ point.date[5:] }}</text>
+      {% endif %}
+      {% endfor %}
+      <text class="chart-date-label forecast-label" x="746" y="242">Forecast</text>
+    </svg>
+  </div>
+  {% else %}
+  <p class="muted">No progress data is available for this period.</p>
+  {% endif %}
+  <div class="forecast-line">
+    <span>{{ data.timeline_options.encouragement }}</span>
+    <strong>
+      Delta:
+      {{ "%+.1f"|format(data.timeline_options.delta) if data.timeline_options.delta is not none else "N/A" }}
+    </strong>
+  </div>
+</details>
+
+<section class="dashboard-summary-grid">
+  <article class="panel">
+    <div class="row-between">
+      <div>
+        <p class="eyebrow">Customer Satisfaction</p>
+        <h2>{{ data.customer_satisfaction }}%</h2>
+      </div>
+    </div>
+    <div class="bar large">
+      <div style="width: {{ data.customer_satisfaction }}%"></div>
+    </div>
+  </article>
+  <article class="panel">
+    <p class="eyebrow">Flags & Alerts</p>
+    <div class="stack">
+      {% for flag in data.flags[:5] %}
+      <div class="list-card {{ flag.severity }}">
+        <strong>{{ flag.title }}</strong>
+        <p>{{ flag.detail }}</p>
+      </div>
+      {% else %}
+      <p class="muted">No current flags.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+<script>
+  document.querySelectorAll("[data-series-toggle]").forEach((checkbox) => {
+    const storageKey = "mirror-timeline-" + checkbox.dataset.seriesToggle;
+    const savedValue = localStorage.getItem(storageKey);
+    if (savedValue !== null) {
+      checkbox.checked = savedValue === "true";
+    }
+
+    const updateSeries = () => {
+      const seriesName = checkbox.dataset.seriesToggle;
+      const line = document.querySelector(".series-" + seriesName);
+      const dots = document.querySelector(".dots-" + seriesName);
+      if (line) line.style.display = checkbox.checked ? "" : "none";
+      if (dots) dots.style.display = checkbox.checked ? "" : "none";
+    };
+    updateSeries();
+
+    checkbox.addEventListener("change", () => {
+      localStorage.setItem(storageKey, String(checkbox.checked));
+      updateSeries();
+    });
+  });
+</script>
+{% endblock %}

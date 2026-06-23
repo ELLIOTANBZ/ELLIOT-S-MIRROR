@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MIRROR</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+
+<body>
+  {% if logged_in_user %}
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">M</div>
+      <div>
+        <strong>MIRROR</strong>
+        <span>Competency Dashboard</span>
+      </div>
+    </div>
+
+    <nav>
+      {% if logged_in_user.role != "Admin" or viewed_user.id != logged_in_user.id %}
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('readiness_page') }}">My Readiness</a>
+      <a href="{{ url_for('training_page') }}">Training & Recommendations</a>
+      {% endif %}
+      <a href="{{ url_for('local_import_page') }}">Local Import</a>
+
+      {% if logged_in_user.role in ["TL", "Supervisor"] and viewed_user.id == logged_in_user.id %}
+      <a href="{{ url_for('team') }}">Team Overview</a>
+      {% endif %}
+
+      {% if logged_in_user.role == "Admin" and viewed_user.id == logged_in_user.id %}
+      <section class="viewing-panel">
+        <span>Viewing As</span>
+        <form method="post" action="{{ url_for('view_as') }}">
+          <select name="officer_id" onchange="this.form.submit()">
+            <option value="{{ logged_in_user.id }}" {% if viewed_user.id==logged_in_user.id %}selected{% endif %}>
+              {{ logged_in_user.name }} (you)
+            </option>
+            {% for user in viewing_options if user.id != logged_in_user.id %}
+            <option value="{{ user.id }}" {% if viewed_user.id==user.id %}selected{% endif %}>
+              {{ user.name }} · {{ user.role }}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+        {% if viewed_user.id != logged_in_user.id %}
+        <form method="post" action="{{ url_for('stop_viewing') }}">
+          <button type="submit">Return to {{ "Admin" if logged_in_user.role == "Admin" else "my account" }}</button>
+        </form>
+        {% endif %}
+      </section>
+      <a class="{{ 'active' if request.args.get('tab', 'settings') == 'settings' else '' }}"
+        href="{{ url_for('admin_page', tab='settings') }}">Weights & Thresholds</a>
+      <a class="{{ 'active' if request.args.get('tab') == 'organisation' else '' }}"
+        href="{{ url_for('admin_page', tab='organisation') }}">Organisation Chart</a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-profile">
+        <span class="profile-avatar">{{ logged_in_user.name[:1] }}</span>
+        <div>
+          <strong>{{ logged_in_user.name }}</strong>
+          <small>{{ logged_in_user.role }}</small>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('logout') }}">
+        <button class="ghost-button" type="submit">Logout</button>
+      </form>
+    </div>
+  </aside>
+  {% endif %}
+
+  <main class="{{ 'shell' if logged_in_user else 'login-shell' }}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %} <!-- Put the child page content here. -->
+  </main>
+</body>
+
+</html>

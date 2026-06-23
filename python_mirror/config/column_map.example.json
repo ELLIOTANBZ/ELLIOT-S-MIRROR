@@ -1,0 +1,38 @@
+{
+  "ess": {
+    "officer_id": "FILL_IN_LOCALLY",
+    "upload_date": "FILL_IN_LOCALLY",
+    "rating": "FILL_IN_LOCALLY",
+    "feedback": "FILL_IN_LOCALLY"
+  },
+  "audit": {
+    "officer_id": "FILL_IN_LOCALLY",
+    "upload_date": "FILL_IN_LOCALLY",
+    "total_score": "FILL_IN_LOCALLY",
+    "indicator_columns": [
+      "FILL_IN_LOCALLY"
+    ],
+    "comment_columns": [
+      "FILL_IN_LOCALLY"
+    ]
+  },
+  "interactions": {
+    "officer_id": "FILL_IN_LOCALLY",
+    "upload_date": "FILL_IN_LOCALLY",
+    "case_id": "FILL_IN_LOCALLY",
+    "member_query": "FILL_IN_LOCALLY",
+    "officer_response": "FILL_IN_LOCALLY"
+  },
+  "training": {
+    "officer_id": "FILL_IN_LOCALLY",
+    "title": "FILL_IN_LOCALLY",
+    "provider": "FILL_IN_LOCALLY",
+    "training_type": "FILL_IN_LOCALLY",
+    "description": "FILL_IN_LOCALLY",
+    "assigned_by": "FILL_IN_LOCALLY",
+    "status": "FILL_IN_LOCALLY",
+    "assigned_date": "FILL_IN_LOCALLY",
+    "completed_date": "FILL_IN_LOCALLY",
+    "notes": "FILL_IN_LOCALLY"
+  }
+}

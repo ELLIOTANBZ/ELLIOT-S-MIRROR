@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Local Import</p>
+    <h1>Import Downloaded Data</h1>
+    <p>Upload the CSV/XLSX file downloaded from SharePoint into this local MIRROR app.</p>
+  </div>
+</header>
+
+<section class="content-grid">
+  <article class="panel">
+    <h2>Import Into Local SQLite</h2>
+    <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="form-card embedded">
+      <label>Data Type
+        <select name="import_type" required>
+          <option value="ess">Customer Survey / ESS</option>
+          <option value="audit">Auditmate</option>
+          <option value="interactions">Officer Replies / Interactions</option>
+          <option value="training">Training Records</option>
+        </select>
+      </label>
+      <div class="form-row">
+        <label>From Date
+          <input name="from_date" type="date">
+        </label>
+        <label>To Date
+          <input name="to_date" type="date">
+        </label>
+      </div>
+      <label>CSV/XLSX File
+        <input name="file" type="file" accept=".csv,.xlsx,.xlsm,.xls" required>
+      </label>
+      <button type="submit">Import Into Local DB</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h2>Local Watchdog Folder</h2>
+    <p class="muted">Files downloaded manually from SharePoint can be placed in these local subfolders:</p>
+    <code>{{ incoming_dir }}\audit</code>
+    <code>{{ incoming_dir }}\ess</code>
+    <code>{{ incoming_dir }}\interactions</code>
+    <p class="muted">The local watchdog imports files from these folders and moves them out of incoming.</p>
+  </article>
+</section>
+{% endblock %}

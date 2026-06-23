@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Shared Sync</p>
+    <h1>Submit a Data Change</h1>
+    <p>Changes are saved as JSON files. Upload them manually to the SharePoint Change_Requests folder.</p>
+  </div>
+</header>
+
+<form method="post" class="form-card wide">
+  <label>Table
+    <select name="table_name">
+      <option value="audit_records">audit_records</option>
+      <option value="ess_records">ess_records</option>
+      <option value="interactions">interactions</option>
+      <option value="competency_overrides">competency_overrides</option>
+    </select>
+  </label>
+  <label>Record ID
+    <input name="record_id" placeholder="row id or business id" required>
+  </label>
+  <label>Current Record Version
+    <input name="base_record_version" type="number" value="1" min="0">
+  </label>
+  <label>Field Name
+    <input name="field_name" placeholder="total_score" required>
+  </label>
+  <label>New Value
+    <input name="new_value" required>
+  </label>
+  <label>Note
+    <textarea name="note" rows="4"></textarea>
+  </label>
+  <button type="submit">Submit Change</button>
+</form>
+
+<section class="panel help-panel">
+  <h2>Outgoing Folder</h2>
+  <code>{{ outgoing_dir }}</code>
+</section>
+{% endblock %}

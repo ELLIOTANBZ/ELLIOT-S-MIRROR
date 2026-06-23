@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Team</p>
+    <h1>Team Overview</h1>
+    <p>Readiness and career progress for officers you are allowed to view.</p>
+  </div>
+  <a class="button-link" href="{{ url_for('changes') }}">Submit Change</a>
+</header>
+
+<section class="panel leadership-panel">
+  <div class="row-between">
+    <div>
+      <p class="eyebrow">Leadership Competency</p>
+      <h2>Leadership progress</h2>
+    </div>
+    <strong class="readiness-total">{{ data.leadership_score }}%</strong>
+  </div>
+  <div class="bar large">
+    <div style="width: {{ data.leadership_score }}%"></div>
+  </div>
+  <details class="leadership-details">
+    <summary>View leadership competency details</summary>
+    <div class="leadership-competency-grid">
+      {% for item in data.leadership_competencies %}
+      <article>
+        <div class="row-between"><strong>{{ item.name }}</strong><span>{{ item.score }}</span></div>
+        <small>{{ item.level }}</small>
+        <p>{{ item.description }}</p>
+        <p class="muted">{{ item.development }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </details>
+</section>
+
+<section class="panel">
+  <h2>Team Overview</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Officer</th>
+        <th>Role</th>
+        <th>Team</th>
+        <th>Readiness</th>
+        <th>Stage</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data.rows %}
+      <tr>
+        <td>{{ row.officer.name }}</td>
+        <td>{{ row.officer.role }}</td>
+        <td>{{ row.team }}</td>
+        <td>{{ row.readiness_score }}%</td>
+        <td>{{ row.stage }}</td>
+      </tr>
+      <tr class="team-competency-row">
+        <td colspan="5">
+          {% for group_name, items in row.competency_groups.items() %}
+          <details class="team-competency-section">
+            <summary>{{ group_name|title }}</summary>
+            <div class="competency-grid">
+              {% for item in items %}
+              <details class="competency-box">
+                <summary>
+                  <span>{{ item.name }}</span>
+                  <strong>{{ item.score }}</strong>
+                  <small>{{ item.level }}</small>
+                </summary>
+                <div class="competency-detail">
+                  <p>{{ item.description }}</p>
+                  <h4>Score rationale</h4>
+                  <p>{{ item.rationale }}</p>
+                  <div class="competency-evidence">
+                    <h4>Supporting Evidence</h4>
+                    <p>{{ item.evidence }}</p>
+                  </div>
+                  <h4>Development summary</h4>
+                  <p>{{ item.development }}</p>
+                </div>
+              </details>
+              {% endfor %}
+            </div>
+          </details>
+          {% endfor %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5">No team members are configured for this user.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

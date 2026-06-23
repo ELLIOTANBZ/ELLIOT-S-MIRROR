@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">My Readiness</p>
+    <h1>Your readiness journey</h1>
+    <p>{{ officer.name }} is currently at {{ readiness.stage }}.</p>
+  </div>
+</header>
+
+<section class="panel journey-panel">
+  <div class="journey">
+    {% for stage in readiness.stages %}
+    <div class="journey-stage {{ 'active' if stage == readiness.stage else '' }}">
+      <span>{{ loop.index }}</span>
+      <strong>{{ stage }}</strong>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel readiness-targets">
+  <div class="row-between">
+    <div>
+      <h2>What you need to reach {{ readiness.next_stage }}</h2>
+      <p class="muted">Scores are shown as points out of 100. Tenure is the only percentage-based requirement.</p>
+    </div>
+    <strong class="readiness-total">{{ readiness.readiness_score }} score</strong>
+  </div>
+  <div class="target-list">
+    {% for item in readiness.measures %}
+    {% set met = item.met %}
+    <div class="target-row">
+      <div class="row-between">
+        <span>{{ item.display_name }}</span>
+        <strong>
+          {% if item.metric == "experience" %}
+          {{ readiness.profile.years_in_role }} years worked / {{ readiness.profile.expected_tenure_years }} years
+          expected
+          {% else %}
+          {{ item.value }} / {{ item.minimum_value }}
+          {{ "%" if item.unit == "percent" else " points" }}
+          {% endif %}
+        </strong>
+      </div>
+      <div class="bar {{ 'met' if met else 'unmet' }}">
+        <div style="width: {{ [100, (item.value / item.minimum_value * 100 if item.minimum_value else 0)]|min }}%">
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel readiness-radar-panel">
+  <h2>Competency Radar</h2>
+  <div class="radar-chart" aria-label="Core, functional, and correspondence competency scores">
+    <div class="radar-ring ring-one"></div>
+    <div class="radar-ring ring-two"></div>
+    <div class="radar-ring ring-three"></div>
+    <div class="radar-data" style="clip-path: polygon({{ readiness.radar_polygon }});"></div>
+    <span class="radar-label radar-core">Core {{ readiness.scores.core }}%</span>
+    <span class="radar-label radar-functional">Functional {{ readiness.scores.functional }}%</span>
+    <span class="radar-label radar-correspondence">Correspondence {{ readiness.scores.correspondence }}%</span>
+  </div>
+</section>
+
+<section class="panel competency-panel">
+  <h2>Competency Breakdown</h2>
+  <div class="competency-tabs">
+    <input type="radio" name="competency-tab" id="tab-core" checked>
+    <input type="radio" name="competency-tab" id="tab-functional">
+    <input type="radio" name="competency-tab" id="tab-correspondence">
+    <div class="tab-labels">
+      <label for="tab-core">Core</label>
+      <label for="tab-functional">Functional</label>
+      <label for="tab-correspondence">Correspondence</label>
+    </div>
+    {% for group_name, rows in competency_groups.items() %}
+    <div class="competency-grid tab-content tab-{{ group_name }}">
+      {% for item in rows %}
+      <details class="competency-box">
+        <summary>
+          <span>{{ item.name }}</span>
+          <strong>{{ item.score }}</strong>
+          <small>{{ item.level }}</small>
+        </summary>
+        <div class="competency-detail">
+          <p>{{ item.description }}</p>
+          <h3>Score rationale</h3>
+          <p>{{ item.rationale }}</p>
+          <div class="competency-evidence">
+            <h3>Supporting Evidence</h3>
+            <p>{{ item.evidence }}</p>
+          </div>
+          <h3>Development summary</h3>
+          <p>{{ item.development }}</p>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Admin</p>
+    <h1>MIRROR Administration</h1>
+  </div>
+</header>
+
+{% if selected_tab == "import" %}
+<section class="content-grid">
+  <article class="panel" hidden>
+    <h2>Import Into Local SQLite</h2>
+    <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="form-card embedded">
+      <label>Data Type
+        <select name="import_type" required>
+          <option value="ess">Customer Survey / ESS</option>
+          <option value="audit">Auditmate</option>
+          <option value="interactions">Officer Replies / Interactions</option>
+        </select>
+      </label>
+      <label>Officer
+        <select name="officer_id" required>
+          {% for officer in data.users if officer.role != "Admin" %}
+          <option value="{{ officer.id }}">{{ officer.name }} · {{ officer.role }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="form-row">
+        <label>From Date
+          <input name="from_date" type="date">
+        </label>
+        <label>To Date
+          <input name="to_date" type="date">
+        </label>
+      </div>
+      <label>CSV/XLSX File
+        <input name="file" type="file" accept=".csv,.xlsx,.xlsm,.xls" required>
+      </label>
+      <button type="submit">Import Into Local DB</button>
+    </form>
+  </article>
+  <article class="panel">
+    <h2>Import Training Records</h2>
+    <p class="muted">Upload one CSV/XLSX containing training records for all officers.</p>
+    <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="form-card embedded">
+      <input type="hidden" name="import_type" value="training">
+      <label>Training CSV/XLSX File
+        <input name="file" type="file" accept=".csv,.xlsx,.xlsm,.xls" required>
+      </label>
+      <button type="submit">Import Training Records</button>
+    </form>
+    <p class="muted">
+      The file should include an officer column and a course/training title column. Re-importing replaces training
+      rows for officers found in the file.
+    </p>
+  </article>
+  <article class="panel">
+    <h2>Local Watchdog Folder</h2>
+    <p class="muted">Files downloaded manually from SharePoint can be placed in these local subfolders:</p>
+    <code>{{ incoming_dir }}\audit</code>
+    <code>{{ incoming_dir }}\ess</code>
+    <code>{{ incoming_dir }}\interactions</code>
+    <p class="muted">Name each file <strong>officer-id__filename.csv</strong>. The local watchdog imports it and moves
+      it out of the incoming folder.</p>
+  </article>
+</section>
+{% elif selected_tab == "settings" %}
+<section class="panel settings-intro">
+  <p class="eyebrow">MIRROR Part 2 Model</p>
+  <h2>Readiness component weights</h2>
+  <p class="muted">These seven components form the overall readiness score. The weights must add up to 1.00.</p>
+</section>
+<section class="settings-stack">
+  {% for setting in data.settings %}
+  <form method="post" class="panel settings-form">
+    <input type="hidden" name="action" value="save_settings">
+    <input type="hidden" name="tab" value="settings">
+    <input type="hidden" name="role" value="{{ setting.role }}">
+    <div class="row-between">
+      <h2>{{ setting.role }}</h2>
+      <button type="submit">Save</button>
+    </div>
+    <div class="settings-grid">
+      <label>Core Competency<input name="core_weight" type="number" step="0.01" min="0" max="1"
+          value="{{ setting.core_weight }}"></label>
+      <label>Functional Competency<input name="functional_weight" type="number" step="0.01" min="0" max="1"
+          value="{{ setting.functional_weight }}"></label>
+      <label>Correspondence Competency<input name="correspondence_weight" type="number" step="0.01" min="0" max="1"
+          value="{{ setting.correspondence_weight }}"></label>
+      <label>Performance<input name="performance_weight" type="number" step="0.01" min="0" max="1"
+          value="{{ setting.performance_weight }}"></label>
+      <label>Experience<input name="tenure_weight" type="number" step="0.01" min="0" max="1"
+          value="{{ setting.tenure_weight }}"></label>
+      <label>Development<input name="development_weight" type="number" step="0.01" min="0" max="1"
+          value="{{ setting.development_weight }}"></label>
+      <label>Application<input name="application_weight" type="number" step="0.01" min="0" max="1"
+          value="{{ setting.application_weight }}"></label>
+    </div>
+  </form>
+  {% endfor %}
+</section>
+<section class="panel threshold-panel">
+  <h2>State transition requirements</h2>
+  <p class="muted">These are the minimum scores required to move into each readiness stage.</p>
+  <div class="threshold-groups">
+    {% for stage, rows in data.thresholds|groupby("stage") %}
+    <div class="threshold-group">
+      <h3>{{ stage }}</h3>
+      {% for row in rows %}
+      <form method="post" class="threshold-row">
+        <input type="hidden" name="action" value="save_threshold">
+        <input type="hidden" name="tab" value="settings">
+        <input type="hidden" name="stage" value="{{ row.stage }}">
+        <input type="hidden" name="metric" value="{{ row.metric }}">
+        <label>{{ row.display_name }}
+          <input name="minimum_value" type="number" step="0.1" min="0" max="100" value="{{ row.minimum_value }}">
+        </label>
+        <span>{{ "%" if row.unit == "percent" else "score" }}</span>
+        <button type="submit">Save</button>
+      </form>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% elif selected_tab == "organisation" %}
+<section class="organisation-layout">
+  <article class="panel add-officer-panel">
+    <h2>Add Officer</h2>
+    <form method="post" class="form-card embedded">
+      <input type="hidden" name="action" value="add_officer">
+      <input type="hidden" name="tab" value="organisation">
+      <label>Name<input name="name" required></label>
+      <label>Username<input name="username" required></label>
+      <label>Role
+        <select name="role">
+          <option value="CSE">CSE</option>
+          <option value="TL">TL</option>
+          <option value="Supervisor">Supervisor</option>
+        </select>
+      </label>
+      <label>Team<input name="team" required></label>
+      <label>Temporary Password<input name="password" type="password" required></label>
+      <button type="submit">Add Officer</button>
+    </form>
+  </article>
+  <article class="panel org-chart-panel">
+    <h2>Organisation Chart</h2>
+    <p class="muted">Open a person to change their team or reporting officer.</p>
+    {% macro render_node(node) %}
+    <li>
+      <details class="org-node">
+        <summary>
+          <span class="org-avatar">{{ node.name[:1] }}</span>
+          <span><strong>{{ node.name }}</strong><small>{{ node.role }} · {{ node.team_name or "Unassigned"
+              }}</small></span>
+        </summary>
+        {% if node.role != "Admin" %}
+        <div class="org-editor">
+          <form method="post">
+            <input type="hidden" name="action" value="save_organisation">
+            <input type="hidden" name="tab" value="organisation">
+            <input type="hidden" name="officer_id" value="{{ node.id }}">
+            <input name="team_name" value="{{ node.team_name or '' }}" placeholder="Team">
+            <select name="manager_id" aria-label="Manager for {{ node.name }}">
+              <option value="">No manager</option>
+              {% for manager in data.users if manager.id != node.id and manager.role in ["TL", "Supervisor", "Admin"] %}
+              <option value="{{ manager.id }}" {% if manager.id==node.manager_id %}selected{% endif %}>{{ manager.name
+                }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit">Save</button>
+          </form>
+          <form method="post">
+            <input type="hidden" name="action" value="remove_officer">
+            <input type="hidden" name="tab" value="organisation">
+            <input type="hidden" name="officer_id" value="{{ node.id }}">
+            <button class="trash-button" type="submit" title="Remove {{ node.name }}"
+              aria-label="Remove {{ node.name }}">&#128465;</button>
+          </form>
+        </div>
+        {% endif %}
+      </details>
+      {% if node.children %}
+      <ul>{% for child in node.children %}{{ render_node(child) }}{% endfor %}</ul>
+      {% endif %}
+    </li>
+    {% endmacro %}
+    <div class="org-chart">
+      <ul>{% for root in data.organisation_tree %}{{ render_node(root) }}{% endfor %}</ul>
+    </div>
+
+    {% if data.unassigned_users %}
+    <section class="unassigned-officers">
+      <div>
+        <h3>Unassigned Officers</h3>
+        <p class="muted">New officers remain here until a reporting officer is selected.</p>
+      </div>
+      <div class="unassigned-grid">
+        {% for officer in data.unassigned_users %}
+        <details class="org-node">
+          <summary>
+            <span class="org-avatar">{{ officer.name[:1] }}</span>
+            <span><strong>{{ officer.name }}</strong><small>{{ officer.role }} &middot; {{ officer.team_name or
+                "Unassigned" }}</small></span>
+          </summary>
+          <div class="org-editor">
+            <form method="post">
+              <input type="hidden" name="action" value="save_organisation">
+              <input type="hidden" name="tab" value="organisation">
+              <input type="hidden" name="officer_id" value="{{ officer.id }}">
+              <input name="team_name" value="{{ officer.team_name or '' }}" placeholder="Team">
+              <select name="manager_id" required aria-label="Manager for {{ officer.name }}">
+                <option value="">Choose reporting officer</option>
+                {% for manager in data.users if manager.id != officer.id and manager.role in ["TL", "Supervisor",
+                "Admin"] %}
+                <option value="{{ manager.id }}">{{ manager.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit">Assign</button>
+            </form>
+            <form method="post">
+              <input type="hidden" name="action" value="remove_officer">
+              <input type="hidden" name="tab" value="organisation">
+              <input type="hidden" name="officer_id" value="{{ officer.id }}">
+              <button class="trash-button" type="submit" title="Remove {{ officer.name }}"
+                aria-label="Remove {{ officer.name }}">&#128465;</button>
+            </form>
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </article>
+</section>
+{% else %}
+<section class="panel">
+  <h2>Viewing As</h2>
+  <p class="muted">Open an officer's dashboard using the same data that officer sees. Your Admin account remains logged
+    in.</p>
+  <div class="viewing-grid">
+    {% for officer in data.users if officer.role != "Admin" %}
+    <a class="viewing-card" href="{{ url_for('dashboard', officer_id=officer.id) }}">
+      <strong>{{ officer.name }}</strong>
+      <span>{{ officer.role }} · {{ officer.team_name or "Unassigned" }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -156,6 +156,35 @@ COMPETENCY_DESCRIPTIONS = {
 }
 
 
+ALL_SCORABLE_COMPETENCIES = [
+    *CORE_COMPETENCIES,
+    *FUNCTIONAL_COMPETENCIES,
+    *CORRESPONDENCE_COMPETENCIES,
+]
+
+
+## Fill these in later when the role-specific competency requirements are confirmed.
+## These are used by AI scoring for interactions and projects.
+ROLE_COMPETENCY_REQUIREMENTS = {
+    "CSE": {
+        competency_name: ""
+        for competency_name in ALL_SCORABLE_COMPETENCIES
+    },
+    "TL": {
+        competency_name: ""
+        for competency_name in ALL_SCORABLE_COMPETENCIES
+    },
+    "CSM": {
+        competency_name: ""
+        for competency_name in ALL_SCORABLE_COMPETENCIES
+    },
+    "AH": {
+        competency_name: ""
+        for competency_name in ALL_SCORABLE_COMPETENCIES
+    },
+}
+
+
 INTERACTIONS_AI_RUBRICS = {
     "Thinking Clearly & Making Sound Judgements": ["quality of reasoning in replies", "how staff handle complex or ambiguous cases", "whether staff identify and correct errors before sending"],
     "Working as a Team": [],
@@ -186,6 +215,26 @@ PERFORMANCE_BAND_SCORES = {
     "2-": 65,
     "3": 50,
 }
+
+
+def officer_role_for_ai(officer_id: str) -> str:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT role FROM users WHERE id = ?",
+            (officer_id,),
+        ).fetchone()
+    return row["role"] if row else "CSE"
+
+
+def role_competency_requirements(role: str) -> dict[str, dict[str, str]]:
+    requirements = ROLE_COMPETENCY_REQUIREMENTS.get(role, {})
+    return {
+        competency_name: {
+            "general_description": COMPETENCY_DESCRIPTIONS.get(competency_name, ""),
+            "role_requirement": requirements.get(competency_name, ""),
+        }
+        for competency_name in ALL_SCORABLE_COMPETENCIES
+    }
 
 
 def score_audit_for_one_competency(records: list[dict[str, Any]], indicator_names: list[str]) -> float | None:
@@ -288,22 +337,24 @@ def score_scorecard_for_all_competencies(records: list[dict[str, Any]]) -> dict[
 
 
 ## looks at an interaction, returns AI feedback in a json (list has 16 dicts)
-def score_interaction_with_ai(interaction: dict[str, Any]) -> list[dict[str, Any]]:
+def score_interaction_with_ai(interaction: dict[str, Any], role: str) -> list[dict[str, Any]]:
     system = (
         "You are accessing a public service officer's written response"
         "Return only valid JSON. Do not include markdown."
     )
 
     competencies = {
-        name: INTERACTIONS_AI_RUBRICS.get(name, []) for name in [
-        *AUDIT_CORE_COMPETENCY_FIELDS,
-        *AUDIT_FUNCTIONAL_COMPETENCY_FIELDS,
-        *AUDIT_CORRESPONDENCE_COMPETENCY_FIELDS,
-        ]
+        name: {
+            **role_competency_requirements(role)[name],
+            "interaction_rubric": INTERACTIONS_AI_RUBRICS.get(name, []),
+        }
+        for name in ALL_SCORABLE_COMPETENCIES
     }
 
     user = f"""
-Score the officer response against these competencies:
+The officer's role is: {role}
+
+Score the officer response against these role-specific competency requirements:
 {json.dumps(competencies, ensure_ascii=True)}
 
 Member query:
@@ -336,6 +387,7 @@ Return JSON in this exact shape:
 
 ## store AI results of score_interactions_with_ai into SQLite, returns how many score rows were saved
 def score_interactions_for_officer(officer_id: str) -> int:
+    role = officer_role_for_ai(officer_id)
     with connect() as conn:
         interactions = [
             dict(row)
@@ -355,7 +407,7 @@ def score_interactions_for_officer(officer_id: str) -> int:
     with connect() as conn:
         ## x times, where x = #interactions of officer
         for interaction in interactions:
-            scores = score_interaction_with_ai(interaction)
+            scores = score_interaction_with_ai(interaction, role)
 
             ## 16 times, store into SQLite
             for item in scores:
@@ -384,20 +436,18 @@ def score_interactions_for_officer(officer_id: str) -> int:
     return saved_count
 
 ## HELPER: looks at a project, returns AI feedback in a json (list has 16 dicts)
-def score_project_with_ai(project: dict[str, Any]) -> list[dict[str, Any]]:
+def score_project_with_ai(project: dict[str, Any], role: str) -> list[dict[str, Any]]:
     system = (
         "You are assessing project evidence for public service officer competencies. "
         "Return only valid JSON. Do not include markdown."
     )
 
-    competencies = [
-        *AUDIT_CORE_COMPETENCY_FIELDS,
-        *AUDIT_FUNCTIONAL_COMPETENCY_FIELDS,
-        *AUDIT_CORRESPONDENCE_COMPETENCY_FIELDS,
-    ]
+    competencies = role_competency_requirements(role)
 
     user = f"""
-Score the project evidence against these competencies:
+The officer's role is: {role}
+
+Score the project evidence against these role-specific competency requirements:
 {json.dumps(competencies, ensure_ascii=True)}
 
 Project Name:
@@ -437,6 +487,7 @@ Return JSON in this exact shape:
 
 ## store AI results of score_projects_with_ai into SQLite, returns how many score rows were saved
 def score_projects_for_officer(officer_id: str) -> int:
+    role = officer_role_for_ai(officer_id)
     with connect() as conn:
         projects = [
             dict(row)
@@ -456,7 +507,7 @@ def score_projects_for_officer(officer_id: str) -> int:
     with connect() as conn:
         ## x times, where x = #projects of officer
         for project in projects:
-            scores = score_project_with_ai(project)
+            scores = score_project_with_ai(project, role)
 
             ## 16 times, store into SQLite
             for item in scores:

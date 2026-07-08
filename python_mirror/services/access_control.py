@@ -7,6 +7,9 @@ from typing import Any
 
 from db import connect
 
+SUPERVISOR_ROLES = {"CSM", "AH"}
+TEAM_ROLES = {"TL", *SUPERVISOR_ROLES}
+
 
 ## Returns one user ID and the IDs of everyone below it in the org chart.
 def descendant_user_ids(conn: sqlite3.Connection, user_id: str) -> set[str]:
@@ -82,4 +85,4 @@ def visible_users(
 
 ## Can this role open Team Overview?
 def can_view_team(user: dict[str, Any]) -> bool:
-    return user["role"] in {"TL", "Supervisor", "Admin"}
+    return user["role"] in {*TEAM_ROLES, "Admin"}

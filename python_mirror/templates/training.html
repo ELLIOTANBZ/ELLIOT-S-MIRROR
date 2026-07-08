@@ -44,17 +44,18 @@
   <div class="training-list">
     {% for record in data.records %}
     <article class="training-record">
-      <div>
-        <strong>{{ record.title }}</strong>
+      <div class="training-record-main">
+        <div class="training-record-title">
+          <strong>{{ record.title }}</strong>
+          <span class="status-badge">{{ record.status }}</span>
+        </div>
         <p>{{ record.description or "Course description has not been added yet." }}</p>
-        <small>Conducted by {{ record.assigned_by or record.provider or "CPF Board" }}</small>
-      </div>
-      <div>
-        <span class="status-badge">{{ record.status }}</span>
-        <span class="training-type">{{ record.training_type or "Optional" }}</span>
-        <small>
-          {{ record.completed_date or record.assigned_date or "Date not set" }}
-        </small>
+        <div class="training-meta">
+          <span>{{ record.training_type or "Optional" }}</span>
+          <span>Gap: {{ record.competency_gap or "Not specified" }}</span>
+          <span>Provider: {{ record.assigned_by or record.provider or "CPF Board" }}</span>
+          <span>{{ record.completed_date or record.assigned_date or "Date not set" }}</span>
+        </div>
       </div>
     </article>
     {% else %}
@@ -66,48 +67,27 @@
 
 <section class="panel">
   <div class="row-between training-records-header">
-    <h2>Recommended Courses</h2>
+    <div>
+      <h2>Course Search Keywords</h2>
+      <p class="muted">Use these AI-suggested keywords to search for suitable courses in your learning catalogue.</p>
+    </div>
 
     <div class="training-actions">
-      <form method="post" action="{{ url_for('refresh_course_catalogue') }}">
-        <button type="submit">Refresh Course Catalogue</button>
-      </form>
-
-      <form method="post" action="{{ url_for('generate_recommendations') }}">
-        <button type="submit">Generate AI Recommendations</button>
+      <form method="post" action="{{ url_for('generate_training_search_keywords') }}">
+        <button type="submit">Generate AI Keywords</button>
       </form>
     </div>
   </div>
 
-  <div class="recommendation-list">
-    {% for record in data.recommendations %}
-    {% if record.course_url %}
-    <a class="recommendation-card recommendation-link-card" href="{{ record.course_url }}" target="_blank" rel="noopener">
-    {% else %}
-    <article class="recommendation-card">
-    {% endif %}
-      <div>
-        <strong>{{ record.title }}</strong>
-        <div class="recommendation-meta">
-          {% if record.start_date %}<span>{{ record.start_date }}</span>{% endif %}
-          {% if record.price %}<span>{{ record.price }}</span>{% endif %}
-          {% if record.product_type %}<span>{{ record.product_type }}</span>{% endif %}
-          {% if record.duration %}<span>{{ record.duration }}</span>{% endif %}
-        </div>
-        <p>{{ record.description or "Recommendation details have not been added yet." }}</p>
-        <small>Provider: {{ record.provider or "CPF Board" }}</small>
-      </div>
-      <div>
-        <span class="training-type">{{ record.training_type or "Optional"}}</span>
-        <span class="gap-badge">Gap: {{ record.competency_gap or "Not specified"}}</span>
-      </div>
-    {% if record.course_url %}
-    </a>
-    {% else %}
+  <div class="keyword-list">
+    {% for item in data.keyword_recommendations %}
+    <article class="keyword-card">
+      <strong>{{ item.keyword }}</strong>
+      <span>{{ item.competency_gap or "General development" }}</span>
+      <p>{{ item.reason or "Search this keyword to find relevant training." }}</p>
     </article>
-    {% endif %}
     {% else %}
-    <p class="muted">No course recommendations yet.</p>
+    <p class="muted">No AI keywords yet.</p>
     {% endfor %}
   </div>
 </section>

@@ -36,7 +36,7 @@
       </div>
       <div>
         <dt>Readiness</dt>
-        <dd>{{ data.career.readiness_score }}%</dd>
+        <dd>{{ data.career.readiness_percent }}%</dd>
       </div>
       <div>
         <dt>Team</dt>
@@ -82,18 +82,50 @@
   <article class="panel feedback-card">
     <p class="eyebrow">AI Feedback Summary</p>
     <h2>{{ data.feedback.overall_level }} level</h2>
-    <p>
-      Audit average:
-      {{ "%.1f"|format(data.feedback.summary.average_audit_score) if data.feedback.summary.average_audit_score is not
-      none else "No data" }}.
-      Customer rating:
-      {{ "%.1f"|format(data.feedback.summary.average_ess_rating) if data.feedback.summary.average_ess_rating is not none
-      else "No data" }}.
-    </p>
+    {% if data.feedback.summary.assessment %}
+    <p>{{ data.feedback.summary.assessment }}</p>
+    {% endif %}
+
+    {% if data.feedback.evidence_trends %}
+    <h3>Performance trends</h3>
+    <ul class="plain-list">
+      {% for item in data.feedback.evidence_trends[:3] %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if data.feedback.customer_feedback_trends %}
+    <h3>Customer feedback trends</h3>
+    <ul class="plain-list">
+      {% for item in data.feedback.customer_feedback_trends[:3] %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if data.feedback.interaction_observations %}
+    <h3>Interaction observations</h3>
+    <ul class="plain-list">
+      {% for item in data.feedback.interaction_observations[:3] %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if data.feedback.project_observations %}
+    <h3>Project observations</h3>
+    <ul class="plain-list">
+      {% for item in data.feedback.project_observations[:3] %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </article>
   <article class="panel feedback-card">
     <p class="eyebrow">Recommended Next Actions</p>
     <ul class="plain-list">
+      {% for item in data.feedback.improvement_advice[:3] %}<li>{{ item }}</li>{% endfor %}
       {% for item in data.feedback.learning_pathway[:3] %}<li>{{ item }}</li>{% endfor %}
     </ul>
   </article>

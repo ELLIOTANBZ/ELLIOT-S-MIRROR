@@ -7,69 +7,104 @@
   </div>
 </header>
 
-{% if selected_tab == "import" %}
-<section class="content-grid">
-  <article class="panel" hidden>
-    <h2>Import Into Local SQLite</h2>
-    <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="form-card embedded">
-      <label>Data Type
-        <select name="import_type" required>
-          <option value="ess">Customer Survey / ESS</option>
-          <option value="audit">Auditmate</option>
-          <option value="interactions">Officer Replies / Interactions</option>
-        </select>
+{% if selected_tab == "build_csv" %}
+<section class="content-grid single-column">
+  <article class="panel">
+    <h2>Build Daily CSV</h2>
+    <p class="muted">
+      Upload source files for audit, scorecard, ESS, interactions, training, performance banding, or project evidence.
+      MIRROR will add the current org chart, profile, weights, and thresholds, then download one final CSV.
+    </p>
+    <form method="post" action="{{ url_for('build_daily_csv_page') }}" enctype="multipart/form-data"
+      class="form-card embedded">
+      <label>Source Files
+        <input name="source_files" type="file" accept=".csv,.xlsx,.xlsm,.xls" multiple>
       </label>
-      <label>Officer
-        <select name="officer_id" required>
-          {% for officer in data.users if officer.role != "Admin" %}
-          <option value="{{ officer.id }}">{{ officer.name }} · {{ officer.role }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <div class="form-row">
-        <label>From Date
-          <input name="from_date" type="date">
-        </label>
-        <label>To Date
-          <input name="to_date" type="date">
-        </label>
-      </div>
-      <label>CSV/XLSX File
-        <input name="file" type="file" accept=".csv,.xlsx,.xlsm,.xls" required>
-      </label>
-      <button type="submit">Import Into Local DB</button>
+      <button type="submit">Download Daily CSV</button>
     </form>
   </article>
   <article class="panel">
-    <h2>Import Training Records</h2>
-    <p class="muted">Upload one CSV/XLSX containing training records for all officers.</p>
+    <h2>What Goes Into The File</h2>
+    <p class="muted">The downloaded CSV includes admin configuration from this local MIRROR app:</p>
+    <ul class="plain-list">
+      <li>Officer names, roles, teams, trained schemes, and reporting lines</li>
+      <li>Career profiles and target roles</li>
+      <li>Readiness weights</li>
+      <li>Readiness thresholds</li>
+      <li>Competency source weights</li>
+    </ul>
+    <h3>Source File Format</h3>
+    <p class="muted">Uploaded source files must use MIRROR's expected column names so the app can recognise them.</p>
+    <ul class="plain-list">
+      <li>Audit: officer_id, upload_date, total_score, competency columns</li>
+      <li>Scorecard: officer_id, upload_date, competency columns</li>
+      <li>ESS: officer_id, upload_date, rating, feedback, ESS Valid</li>
+      <li>Interactions: officer_id, upload_date, case_id, member_query, officer_response</li>
+      <li>Training/profile: officer_id, Title, Provider, Training Type, Status, Assigned Date, Completed Date,
+        Description, Competency Gap, Start Date In Position, Trained Schemes</li>
+      <li>Performance: officer_id, Performance Period, Performance Banding, Performance Score</li>
+      <li>Projects: officer_id, Project Name, Project Leads, Requirements, What Was Done, Project Lead Comments, Project
+        Score</li>
+      <li>Competency source weights: Source Competency, Source Audit Weight, Source Scorecard Weight, Source Interaction
+        Weight, Source Project
+        Weight</li>
+    </ul>
+    <h3>Full Daily CSV Columns</h3>
+    <p class="muted">The final daily CSV can use these columns:</p>
+    <code
+      class="csv-column-list">officer_id, Officer Name, Officer Role, Manager ID, Team Name, Trained Schemes, Current Role, Target Role, Start Date In Position, Expected Tenure Years, Key Responsibilities, Target Responsibilities, upload_date, total_score, Courtesy, Confidentiality, Comprehend Intent, Comply - Email Writing SOG, Correct Information, Complete Information, Clear and Easy, Meaningful Conversations, Cultivate Digital Awareness, Verified Mistake, Personal Development, Team Development, Stakeholder Development, rating, feedback, ESS Valid, case_id, member_query, officer_response, Title, Provider, Training Type, Status, Assigned Date, Completed Date, Description, Competency Gap, Performance Period, Performance Banding, Performance Score, Project Name, Project Leads, Requirements, What Was Done, Project Lead Comments, Readiness Role, Core Weight, Functional Weight, Correspondence Weight, Performance Banding Weight, Projects Weight, Experience Weight, Threshold Stage, Threshold Metric, Threshold Display Name, Threshold Minimum Value, Threshold Unit, Threshold Sequence, Source Competency, Source Audit Weight, Source Scorecard Weight, Source Interaction Weight, Source Project Weight</code>
+    <h3>Threshold Rows</h3>
+    <p class="muted">
+      Threshold columns are normal CSV columns. Each threshold is one row, for example:
+      Threshold Stage = Meeting Expectations, Threshold Metric = core, Threshold Minimum Value = 65.
+    </p>
+    <h3>Project Updates</h3>
+    <p class="muted">
+      Project leads can download project updates from the Projects page. Admin can upload those project update CSVs here
+      together with the other source files, then download one combined daily CSV for everyone.
+    </p>
+  </article>
+</section>
+{% elif selected_tab == "import" %}
+<section class="content-grid">
+  <article class="panel">
+    <h2>Import Daily MIRROR File</h2>
+    <p class="muted">Upload one CSV/XLSX containing the daily officer data for this local MIRROR app.</p>
     <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="form-card embedded">
-      <input type="hidden" name="import_type" value="training">
-      <label>Training CSV/XLSX File
+      <label>Daily CSV/XLSX File
         <input name="file" type="file" accept=".csv,.xlsx,.xlsm,.xls" required>
       </label>
-      <button type="submit">Import Training Records</button>
+      <button type="submit">Import Daily File</button>
     </form>
     <p class="muted">
-      The file should include an officer column and a course/training title column. Re-importing replaces training
-      rows for officers found in the file.
+      The file can include profile, audit, scorecard, ESS, interaction, training, performance banding, and project
+      evidence
+      columns.
     </p>
+    <div class="import-format-note">
+      <h3>Scorecard format</h3>
+      <p class="muted">
+        Scorecard files must include an officer name or ID column, an upload date column, and scorecard code columns
+        such as P1, P2, Q1, and B2.
+      </p>
+      <p class="muted">
+        One row must contain the criteria names with weights, for example RAMP/GRIT: 5% Online Feedback: 2% (10%).
+        Officer rows below that should contain the score earned for each scorecard column.
+      </p>
+    </div>
   </article>
   <article class="panel">
     <h2>Local Watchdog Folder</h2>
-    <p class="muted">Files downloaded manually from SharePoint can be placed in these local subfolders:</p>
-    <code>{{ incoming_dir }}\audit</code>
-    <code>{{ incoming_dir }}\ess</code>
-    <code>{{ incoming_dir }}\interactions</code>
-    <p class="muted">Name each file <strong>officer-id__filename.csv</strong>. The local watchdog imports it and moves
-      it out of the incoming folder.</p>
+    <p class="muted">Files downloaded manually from SharePoint can be placed in this local folder:</p>
+    <code>{{ incoming_dir }}</code>
+    <p class="muted">The import reads the file locally and updates only this laptop's SQLite database.</p>
   </article>
 </section>
 {% elif selected_tab == "settings" %}
 <section class="panel settings-intro">
   <p class="eyebrow">MIRROR Part 2 Model</p>
   <h2>Readiness component weights</h2>
-  <p class="muted">These seven components form the overall readiness score. The weights must add up to 1.00.</p>
+  <p class="muted">These six components form the overall readiness score. The weights must add up to 1.00.</p>
 </section>
 <section class="settings-stack">
   {% for setting in data.settings %}
@@ -77,37 +112,71 @@
     <input type="hidden" name="action" value="save_settings">
     <input type="hidden" name="tab" value="settings">
     <input type="hidden" name="role" value="{{ setting.role }}">
-    <div class="row-between">
+    <div class="settings-form-layout">
       <h2>{{ setting.role }}</h2>
-      <button type="submit">Save</button>
-    </div>
-    <div class="settings-grid">
-      <label>Core Competency<input name="core_weight" type="number" step="0.01" min="0" max="1"
-          value="{{ setting.core_weight }}"></label>
-      <label>Functional Competency<input name="functional_weight" type="number" step="0.01" min="0" max="1"
-          value="{{ setting.functional_weight }}"></label>
-      <label>Correspondence Competency<input name="correspondence_weight" type="number" step="0.01" min="0" max="1"
-          value="{{ setting.correspondence_weight }}"></label>
-      <label>Performance<input name="performance_weight" type="number" step="0.01" min="0" max="1"
-          value="{{ setting.performance_weight }}"></label>
-      <label>Experience<input name="tenure_weight" type="number" step="0.01" min="0" max="1"
-          value="{{ setting.tenure_weight }}"></label>
-      <label>Development<input name="development_weight" type="number" step="0.01" min="0" max="1"
-          value="{{ setting.development_weight }}"></label>
-      <label>Application<input name="application_weight" type="number" step="0.01" min="0" max="1"
-          value="{{ setting.application_weight }}"></label>
+      <div class="settings-grid">
+        <label>Core Competency<input name="core_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ setting.core_weight }}"></label>
+        <label>Functional Competency<input name="functional_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ setting.functional_weight }}"></label>
+        <label>Correspondence Competency<input name="correspondence_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ setting.correspondence_weight }}"></label>
+        <label>Performance Banding<input name="performance_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ setting.performance_weight }}"></label>
+        <label>Projects<input name="development_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ setting.development_weight }}"></label>
+        <label>Experience<input name="tenure_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ setting.tenure_weight }}"></label>
+      </div>
+      <div class="settings-actions">
+        <p class="weight-total">Total: <strong data-weight-total>1.0000</strong></p>
+        <button type="button" data-equalise-weights>Equalise</button>
+        <button type="submit">Save</button>
+      </div>
     </div>
   </form>
+  {% endfor %}
+</section>
+<section class="panel source-weight-panel">
+  <h2>Competency source weights</h2>
+  <p class="muted">
+    These weights decide how much audit, scorecard, interaction, and project evidence should count for each competency
+    once AI
+    scoring is added.
+  </p>
+  {% for group_name, rows in data.source_weight_groups.items() %}
+  <details class="source-weight-group">
+    <summary>{{ group_name }}</summary>
+    <div class="source-weight-list">
+      {% for row in rows %}
+      <form method="post" class="source-weight-row">
+        <input type="hidden" name="action" value="save_competency_source_weight">
+        <input type="hidden" name="tab" value="settings">
+        <input type="hidden" name="competency_name" value="{{ row.competency_name }}">
+        <strong>{{ row.competency_name }}</strong>
+        <label>Audit<input name="audit_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ row.audit_weight }}"></label>
+        <label>Scorecard<input name="scorecard_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ row.scorecard_weight }}"></label>
+        <label>Interactions<input name="interaction_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ row.interaction_weight }}"></label>
+        <label>Projects<input name="project_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ row.project_weight }}"></label>
+        <button type="submit">Save</button>
+      </form>
+      {% endfor %}
+    </div>
+  </details>
   {% endfor %}
 </section>
 <section class="panel threshold-panel">
   <h2>State transition requirements</h2>
   <p class="muted">These are the minimum scores required to move into each readiness stage.</p>
   <div class="threshold-groups">
-    {% for stage, rows in data.thresholds|groupby("stage") %}
+    {% for stage in ["Meeting Expectations", "Stretch Assignment Ready", "Career Advancement Ready"] %}
     <div class="threshold-group">
       <h3>{{ stage }}</h3>
-      {% for row in rows %}
+      {% for row in data.thresholds if row.stage == stage %}
       <form method="post" class="threshold-row">
         <input type="hidden" name="action" value="save_threshold">
         <input type="hidden" name="tab" value="settings">
@@ -137,7 +206,8 @@
         <select name="role">
           <option value="CSE">CSE</option>
           <option value="TL">TL</option>
-          <option value="Supervisor">Supervisor</option>
+          <option value="CSM">CSM</option>
+          <option value="AH">AH</option>
         </select>
       </label>
       <label>Team<input name="team" required></label>
@@ -146,32 +216,48 @@
     </form>
   </article>
   <article class="panel org-chart-panel">
-    <h2>Organisation Chart</h2>
-    <p class="muted">Open a person to change their team or reporting officer.</p>
+    <div class="row-between">
+      <div>
+        <h2>Organisation Chart</h2>
+        <p class="muted">Open a person to change their role, team, or reporting officer. </p>
+      </div>
+      <button type="submit" form="organisation-save-form">Save Organisation Chart</button>
+    </div>
+    <form id="organisation-save-form" method="post">
+      <input type="hidden" name="action" value="save_organisation_all">
+      <input type="hidden" name="tab" value="organisation">
+    </form>
     {% macro render_node(node) %}
     <li>
       <details class="org-node">
         <summary>
           <span class="org-avatar">{{ node.name[:1] }}</span>
-          <span><strong>{{ node.name }}</strong><small>{{ node.role }} · {{ node.team_name or "Unassigned"
-              }}</small></span>
+          <span>
+            <strong>{{ node.name }}</strong>
+            <small>{{ node.role }} · {{ node.team_name or "Unassigned" }}</small>
+            {% if node.trained_schemes %}<small>{{ node.trained_schemes }}</small>{% endif %}
+          </span>
         </summary>
         {% if node.role != "Admin" %}
         <div class="org-editor">
-          <form method="post">
-            <input type="hidden" name="action" value="save_organisation">
-            <input type="hidden" name="tab" value="organisation">
-            <input type="hidden" name="officer_id" value="{{ node.id }}">
-            <input name="team_name" value="{{ node.team_name or '' }}" placeholder="Team">
-            <select name="manager_id" aria-label="Manager for {{ node.name }}">
+          <div class="org-assignment-editor">
+            <input form="organisation-save-form" type="hidden" name="officer_id" value="{{ node.id }}">
+            <select form="organisation-save-form" name="role_{{ node.id }}" aria-label="Role for {{ node.name }}">
+              {% for role in ["CSE", "TL", "CSM", "AH"] %}
+              <option value="{{ role }}" {% if role==node.role %}selected{% endif %}>{{ role }}</option>
+              {% endfor %}
+            </select>
+            <input form="organisation-save-form" name="team_name_{{ node.id }}" value="{{ node.team_name or '' }}"
+              placeholder="Team">
+            <select form="organisation-save-form" name="manager_id_{{ node.id }}"
+              aria-label="Manager for {{ node.name }}">
               <option value="">No manager</option>
-              {% for manager in data.users if manager.id != node.id and manager.role in ["TL", "Supervisor", "Admin"] %}
+              {% for manager in data.manager_options_by_user.get(node.id, []) %}
               <option value="{{ manager.id }}" {% if manager.id==node.manager_id %}selected{% endif %}>{{ manager.name
                 }}</option>
               {% endfor %}
             </select>
-            <button type="submit">Save</button>
-          </form>
+          </div>
           <form method="post">
             <input type="hidden" name="action" value="remove_officer">
             <input type="hidden" name="tab" value="organisation">
@@ -202,24 +288,31 @@
         <details class="org-node">
           <summary>
             <span class="org-avatar">{{ officer.name[:1] }}</span>
-            <span><strong>{{ officer.name }}</strong><small>{{ officer.role }} &middot; {{ officer.team_name or
-                "Unassigned" }}</small></span>
+            <span>
+              <strong>{{ officer.name }}</strong>
+              <small>{{ officer.role }} · {{ officer.team_name or "Unassigned" }}</small>
+              {% if officer.trained_schemes %}<small>{{ officer.trained_schemes }}</small>{% endif %}
+            </span>
           </summary>
           <div class="org-editor">
-            <form method="post">
-              <input type="hidden" name="action" value="save_organisation">
-              <input type="hidden" name="tab" value="organisation">
-              <input type="hidden" name="officer_id" value="{{ officer.id }}">
-              <input name="team_name" value="{{ officer.team_name or '' }}" placeholder="Team">
-              <select name="manager_id" required aria-label="Manager for {{ officer.name }}">
+            <div class="org-assignment-editor">
+              <input form="organisation-save-form" type="hidden" name="officer_id" value="{{ officer.id }}">
+              <select form="organisation-save-form" name="role_{{ officer.id }}"
+                aria-label="Role for {{ officer.name }}">
+                {% for role in ["CSE", "TL", "CSM", "AH"] %}
+                <option value="{{ role }}" {% if role==officer.role %}selected{% endif %}>{{ role }}</option>
+                {% endfor %}
+              </select>
+              <input form="organisation-save-form" name="team_name_{{ officer.id }}"
+                value="{{ officer.team_name or '' }}" placeholder="Team">
+              <select form="organisation-save-form" name="manager_id_{{ officer.id }}"
+                aria-label="Manager for {{ officer.name }}">
                 <option value="">Choose reporting officer</option>
-                {% for manager in data.users if manager.id != officer.id and manager.role in ["TL", "Supervisor",
-                "Admin"] %}
+                {% for manager in data.manager_options_by_user.get(officer.id, []) %}
                 <option value="{{ manager.id }}">{{ manager.name }}</option>
                 {% endfor %}
               </select>
-              <button type="submit">Assign</button>
-            </form>
+            </div>
             <form method="post">
               <input type="hidden" name="action" value="remove_officer">
               <input type="hidden" name="tab" value="organisation">
@@ -250,4 +343,27 @@
   </div>
 </section>
 {% endif %}
+<script>
+  document.querySelectorAll("[data-equalise-weights]").forEach((button) => {
+    const form = button.closest("form");
+    const inputs = form.querySelectorAll(".settings-grid input[type='number']");
+    const total = form.querySelector("[data-weight-total]");
+    const updateTotal = () => {
+      const value = Array.from(inputs).reduce((sum, input) => sum + Number(input.value || 0), 0);
+      total.textContent = value.toFixed(4);
+      total.classList.toggle("warning", Math.abs(value - 1) > 0.001);
+    };
+    inputs.forEach((input) => input.addEventListener("input", updateTotal));
+    updateTotal();
+    button.addEventListener("click", () => {
+      const equalValue = Math.floor((1 / inputs.length) * 10000) / 10000;
+      inputs.forEach((input, index) => {
+        input.value = index === inputs.length - 1
+          ? (1 - equalValue * (inputs.length - 1)).toFixed(4)
+          : equalValue.toFixed(4);
+      });
+      updateTotal();
+    });
+  });
+</script>
 {% endblock %}

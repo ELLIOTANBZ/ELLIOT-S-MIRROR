@@ -6,9 +6,12 @@
     <h1>Your readiness journey</h1>
     <p>{{ officer.name }} is currently at {{ readiness.stage }}.</p>
   </div>
+  <form method="post" action="{{ url_for('score_existing_evidence') }}">
+    <button type="submit">↻</button>
+  </form>
 </header>
 
-<section class="panel journey-panel">
+<section class="panel journey-panel {{ 'paused' if readiness.readiness_paused else '' }}">
   <div class="journey">
     {% for stage in readiness.stages %}
     <div class="journey-stage {{ 'active' if stage == readiness.stage else '' }}">
@@ -19,24 +22,31 @@
   </div>
 </section>
 
-<section class="panel readiness-targets">
-  <div class="row-between">
+{% if readiness.readiness_paused %}
+<section class="panel pause-panel">
+  <h2>Readiness progression paused</h2>
+  {% for reason in readiness.pause_reasons %}
+  <p>{{ reason.detail }}</p>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="panel readiness-targets {{ 'paused' if readiness.readiness_paused else '' }}">
+  <div class="row-between readiness-target-header">
     <div>
       <h2>What you need to reach {{ readiness.next_stage }}</h2>
-      <p class="muted">Scores are shown as points out of 100. Tenure is the only percentage-based requirement.</p>
     </div>
-    <strong class="readiness-total">{{ readiness.readiness_score }} score</strong>
+    <strong class="readiness-total">{{ readiness.readiness_percent }}%</strong>
   </div>
   <div class="target-list">
     {% for item in readiness.measures %}
     {% set met = item.met %}
     <div class="target-row">
       <div class="row-between">
-        <span>{{ item.display_name }}</span>
+        <span>{{ "Years in position" if item.metric == "experience" else item.display_name }}</span>
         <strong>
           {% if item.metric == "experience" %}
-          {{ readiness.profile.years_in_role }} years worked / {{ readiness.profile.expected_tenure_years }} years
-          expected
+          {{ readiness.profile.years_in_role }} years worked
           {% else %}
           {{ item.value }} / {{ item.minimum_value }}
           {{ "%" if item.unit == "percent" else " points" }}
@@ -55,18 +65,33 @@
 <section class="panel readiness-radar-panel">
   <h2>Competency Radar</h2>
   <div class="radar-chart" aria-label="Core, functional, and correspondence competency scores">
-    <div class="radar-ring ring-one"></div>
-    <div class="radar-ring ring-two"></div>
-    <div class="radar-ring ring-three"></div>
     <div class="radar-data" style="clip-path: polygon({{ readiness.radar_polygon }});"></div>
-    <span class="radar-label radar-core">Core {{ readiness.scores.core }}%</span>
-    <span class="radar-label radar-functional">Functional {{ readiness.scores.functional }}%</span>
-    <span class="radar-label radar-correspondence">Correspondence {{ readiness.scores.correspondence }}%</span>
+    <svg class="radar-grid" viewBox="0 0 100 100" aria-hidden="true">
+      <line x1="50" y1="50" x2="50" y2="8"></line>
+      <line x1="50" y1="50" x2="79.7" y2="20.3"></line>
+      <line x1="50" y1="50" x2="92" y2="50"></line>
+      <line x1="50" y1="50" x2="79.7" y2="79.7"></line>
+      <line x1="50" y1="50" x2="50" y2="92"></line>
+      <line x1="50" y1="50" x2="20.3" y2="79.7"></line>
+      <line x1="50" y1="50" x2="8" y2="50"></line>
+      <line x1="50" y1="50" x2="20.3" y2="20.3"></line>
+      <polygon points="50,8 79.7,20.3 92,50 79.7,79.7 50,92 20.3,79.7 8,50 20.3,20.3"></polygon>
+      <polygon points="50,16.4 73.8,26.2 83.6,50 73.8,73.8 50,83.6 26.2,73.8 16.4,50 26.2,26.2"></polygon>
+      <polygon points="50,24.8 67.8,32.2 75.2,50 67.8,67.8 50,75.2 32.2,67.8 24.8,50 32.2,32.2"></polygon>
+      <polygon points="50,33.2 61.9,38.1 66.8,50 61.9,61.9 50,66.8 38.1,61.9 33.2,50 38.1,38.1"></polygon>
+      <polygon points="50,41.6 55.9,44.1 58.4,50 55.9,55.9 50,58.4 44.1,55.9 41.6,50 44.1,44.1"></polygon>
+    </svg>
+    {% for item in readiness.radar_items %}
+    <span class="radar-label" style="left: {{ item.label_x }}%; top: {{ item.label_y }}%;">
+      {{ item.name }} {{ item.score }}%
+    </span>
+    {% endfor %}
   </div>
 </section>
 
 <section class="panel competency-panel">
   <h2>Competency Breakdown</h2>
+  <p class="competency-rationale-note">{{ competency_groups.evidence_summary }}</p>
   <div class="competency-tabs">
     <input type="radio" name="competency-tab" id="tab-core" checked>
     <input type="radio" name="competency-tab" id="tab-functional">
@@ -76,7 +101,7 @@
       <label for="tab-functional">Functional</label>
       <label for="tab-correspondence">Correspondence</label>
     </div>
-    {% for group_name, rows in competency_groups.items() %}
+    {% for group_name, rows in competency_groups.items() if group_name != "evidence_summary" %}
     <div class="competency-grid tab-content tab-{{ group_name }}">
       {% for item in rows %}
       <details class="competency-box">
@@ -87,12 +112,6 @@
         </summary>
         <div class="competency-detail">
           <p>{{ item.description }}</p>
-          <h3>Score rationale</h3>
-          <p>{{ item.rationale }}</p>
-          <div class="competency-evidence">
-            <h3>Supporting Evidence</h3>
-            <p>{{ item.evidence }}</p>
-          </div>
           <h3>Development summary</h3>
           <p>{{ item.development }}</p>
         </div>

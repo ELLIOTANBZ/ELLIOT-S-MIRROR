@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Projects</p>
+    <h1>{{ officer.name }}</h1>
+  </div>
+  <a class="button-link" href="{{ url_for('export_projects_csv') }}">Download Project Updates CSV</a>
+</header>
+
+<section class="content-grid single-column">
+  {% if viewed_user.id == logged_in_user.id %}
+  <article class="panel">
+    <h2>Add Project</h2>
+
+    <form method="post" class="form-card embedded">
+      <input type="hidden" name="action" value="add_project">
+
+      <label>Project Name
+        <input name="project_name" required>
+      </label>
+
+      <details class="multi-select-panel">
+        <summary>Project Leads</summary>
+        <div class="multi-select-options">
+          {% for user in project_lead_options %}
+          <label>
+            <input type="checkbox" name="project_leads" value="{{ user.id }}">
+            <span>{{ user.name }} · {{ user.role }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </details>
+
+      <label>Requirements
+        <textarea name="requirements_text" rows="5" required></textarea>
+      </label>
+
+      <button type="submit">Add Project</button>
+    </form>
+  </article>
+  {% endif %}
+
+  <article class="panel project-records-panel">
+    <h2>Project Records</h2>
+
+    {% if projects %}
+    <div class="record-list">
+      {% for project in projects %}
+      <article class="record-card">
+        <h3>{{ project.project_name }}</h3>
+        <p class="muted">
+          {{ project.officer_name }} · Project Leads: {{ project.project_lead_names or "None" }}
+        </p>
+
+        <h4>Requirements</h4>
+        <p>{{ project.requirements_text }}</p>
+
+        <h4>What Was Done</h4>
+        <p>{{ project.evidence_text or "No evidence added yet." }}</p>
+
+        <h4>Project Lead Comments</h4>
+        <p>{{ project.supervisor_comments or "No project lead comments added yet." }}</p>
+
+        {% set lead_ids = project.project_leads.split(";") %}
+        {% if logged_in_user.id in lead_ids or logged_in_user.role == "Admin" %}
+        <form method="post" class="form-card embedded">
+          <input type="hidden" name="action" value="save_supervisor_evidence">
+          <input type="hidden" name="project_id" value="{{ project.id }}">
+
+          <label>What Was Done
+            <textarea name="evidence_text" rows="5">{{ project.evidence_text }}</textarea>
+          </label>
+
+          <label>Project Lead Comments
+            <textarea name="supervisor_comments" rows="4">{{ project.supervisor_comments }}</textarea>
+          </label>
+
+          <button type="submit">Save Evidence & Score</button>
+        </form>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">No projects have been added yet.</p>
+    {% endif %}
+  </article>
+</section>
+
+{% endblock %}

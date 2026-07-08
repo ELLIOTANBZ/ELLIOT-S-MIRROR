@@ -3,38 +3,55 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import csv
 from functools import wraps
+from io import StringIO
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 
 from db import init_db
 from repositories import (
     authenticate,
+    change_password,
     find_user,
-    find_user_by_username,
     list_users,
     submit_manual_change,
 )
 from services.access_control import can_view_team, can_view_user, visible_users
+from services.access_control import SUPERVISOR_ROLES, TEAM_ROLES
+from services.ai_client import ai_is_configured
+from services.competency_scoring import score_evidence_for_officer, score_projects_for_officer
+from services.daily_csv_builder import build_daily_csv
+from services.dashboard_data import dashboard_portal_data
 from services.local_importer import import_local_file
 from services.manual_paths import ensure_manual_dirs, incoming_dir, outgoing_changes_dir
-from services.portal_data import (
+from services.admin_data import (
     add_officer,
     admin_portal_data,
-    competency_groups,
-    dashboard_portal_data,
-    generate_training_recommendations,
     remove_officer,
-    readiness_for,
+    save_competency_source_weight,
     save_organisation_assignment,
+    save_organisation_assignments,
     save_readiness_settings,
     save_readiness_threshold,
-    team_portal_data,
-    training_for,
 )
+
+from services.project_data import (
+    all_projects,
+    find_project,
+    projects_for,
+    projects_for_project_lead,
+    save_project_record,
+    update_project_supervisor_evidence,
+)
+
+from services.readiness_data import competency_groups, readiness_for
+from services.team_data import team_portal_data
+from services.training_data import generate_training_keywords, generate_training_recommendations, training_for
 
 load_dotenv()               ## load .env
 init_db()                   ## create SQLite tables if missing
@@ -104,7 +121,26 @@ def logout():
     return redirect(url_for("login"))
 
 
-## Saves which team member an Admin, TL, or Supervisor is viewing.
+@app.route("/change-password", methods=["POST"])
+@login_required
+def change_own_password():
+    user = current_user()
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_password", "")
+    if new_password != confirm_password:
+        flash("New passwords do not match.", "error")
+        return redirect(request.referrer or url_for("dashboard"))
+    try:
+        change_password(user["id"], request.form.get("current_password", ""), new_password)
+        session.clear()
+        flash("Password changed. Please log in again with your new password.", "success")
+        return redirect(url_for("login"))
+    except Exception as exc:
+        flash(str(exc), "error")
+    return redirect(request.referrer or url_for("dashboard"))
+
+
+## Saves which team member an Admin is viewing.
 @app.route("/view-as", methods=["POST"])
 @login_required
 def view_as():
@@ -174,21 +210,44 @@ def readiness_page():
     )
 
 
+@app.route("/readiness/score-evidence", methods=["POST"])
+@login_required
+def score_existing_evidence():
+    visible, officer = resolve_visible_officer()
+    if not ai_is_configured():
+        flash("AI is not configured, so interaction/project scoring was skipped.")
+        return redirect(url_for("readiness_page"))
+
+    try:
+        result = score_evidence_for_officer(officer["id"])
+        flash(
+            "AI scoring updated "
+            f"{result['interaction_scores']} interaction competency rows and "
+            f"{result['project_scores']} project competency rows."
+        )
+    except Exception as error:
+        flash(f"Could not score existing evidence: {error}")
+
+    return redirect(url_for("readiness_page"))
+
+
 ## Shows pending, in-progress, and completed training records.
 @app.route("/training")
 @login_required
 def training_page():
     visible, officer = resolve_visible_officer()
+    data = training_for(
+        officer["id"],
+        search=request.args.get("search", ""),                  ## reads ?search=... from the URL (searchbar)
+        status=request.args.get("status", "All"),               ## status reads the dropdown value ("All", "Pending", "In Progress", "Completed")
+        show_archived=request.args.get("show_archived") == "1"        ## checks whether archived checkbox was ticked
+    )
+    data["keyword_recommendations"] = session.get(f"training_keywords_{officer['id']}", [])
     return render_page(
         "training.html",
         users=visible,
         officer=officer,
-        data=training_for(
-            officer["id"],
-            search=request.args.get("search", ""),                  ## reads ?search=... from the URL (searchbar)
-            status=request.args.get("status", "All"),               ## status reads the dropdown value ("All", "Pending", "In Progress", "Completed")
-            show_archived=request.args.get("show_archived") == "1"        ## checks whether archived checkbox was ticked
-            ),
+        data=data,
     )
 ## clicking Apply changes the URL to something like: /training?search=writing&status=Completed&show_archived=1
 
@@ -228,12 +287,133 @@ def generate_recommendations():
     return redirect(url_for("training_page"))
 
 
+@app.route("/training/generate-keywords", methods=["POST"])
+@login_required
+def generate_training_search_keywords():
+    visible, officer = resolve_visible_officer()
+    try:
+        keywords = generate_training_keywords(officer["id"])
+        session[f"training_keywords_{officer['id']}"] = keywords
+        flash(f"Generated {len(keywords)} course search keywords.")
+    except Exception as error:
+        flash(f"Could not generate search keywords: {error}", "error")
+    return redirect(url_for("training_page"))
+
+
+@app.route("/projects", methods=["GET", "POST"])
+@login_required
+def projects_page():
+    visible, officer = resolve_visible_officer()
+    user = current_user()
+
+    ## POST add_project
+    if request.method == "POST":
+        action = request.form.get("action")
+
+        try:
+            ## ONLY officer himself creates project
+            if action == "add_project":
+                if officer["id"] != user["id"]:
+                    abort(403)
+                values = request.form.copy()            ## values in the form (project_name, team_lead, requirements)
+                values["officer_id"] = officer["id"]    ## value not in the form
+                save_project_record(values)
+
+            ## project lead gives feedback
+            elif action == "save_supervisor_evidence":
+
+                ## check who owns/leads the project
+                project = find_project(request.form["project_id"])
+                if not project:
+                    abort(404)
+                lead_ids = { item.strip() for item in project["project_leads"].split(";") if item.strip() }
+                if user["id"] not in lead_ids and user["role"] != "Admin":
+                    abort(403)
+
+                update_project_supervisor_evidence(
+                    request.form["project_id"],
+                    request.form.get("evidence_text", ""),
+                    request.form.get("supervisor_comments", ""),
+                )
+                score_projects_for_officer(project["officer_id"])
+
+            flash("Project saved")
+        except HTTPException:
+            raise
+        except Exception as error:
+            flash(f"Could not save project: {error}", "error")
+
+        return redirect(url_for("projects_page"))
+
+    ## GET /projects -> show projects
+    if user["role"] == "Admin":
+        projects = all_projects()
+    elif user["role"] in TEAM_ROLES:
+        projects = projects_for_project_lead(user["id"])
+    else:
+        projects = projects_for(officer["id"])
+
+
+    ## render_page( "which HTML file", variables to give that HTML file to use (eg. {% for project in projects %}) )
+    return render_page(
+        "projects.html",
+        users=visible,
+        officer=officer,
+        projects=projects,
+        project_lead_options=[ item for item in list_users() if item["role"] in {*TEAM_ROLES, "Admin"} ],
+    )
+
+
+@app.route("/projects/export-csv")
+@login_required
+def export_projects_csv():
+    user = current_user()
+    if user["role"] == "Admin":
+        projects = all_projects()
+    elif user["role"] in TEAM_ROLES:
+        projects = projects_for_project_lead(user["id"])
+    else:
+        visible, officer = resolve_visible_officer()
+        projects = projects_for(officer["id"])
+
+    output = StringIO()
+    fieldnames = [
+        "officer_id",
+        "Project Name",
+        "Project Leads",
+        "Requirements",
+        "What Was Done",
+        "Project Lead Comments",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for project in projects:
+        writer.writerow(
+            {
+                "officer_id": project["officer_id"],
+                "Project Name": project["project_name"],
+                "Project Leads": project["project_leads"],
+                "Requirements": project["requirements_text"],
+                "What Was Done": project["evidence_text"],
+                "Project Lead Comments": project["supervisor_comments"],
+            }
+        )
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=mirror_project_updates.csv"
+        },
+    )
+
+
 ## Shows the change request form and creates an outgoing JSON change file when submitted.
 @app.route("/changes", methods=["GET", "POST"])
 @login_required
 def changes():
     user = current_user()
-    if user["role"] not in {"TL", "Supervisor"}:
+    if user["role"] not in TEAM_ROLES:
         abort(403)
     if request.method == "POST":
         change_details = {
@@ -265,32 +445,25 @@ def local_import_page():
 @login_required
 def upload():
     user = current_user()
+    import_destination = (
+        url_for("admin_page", tab="import")
+        if user["role"] == "Admin"
+        else url_for("local_import_page")
+    )
     uploaded = request.files.get("file")
     if not uploaded or not uploaded.filename:
         flash("Choose a CSV or Excel file first.", "error")
-        return redirect(url_for("local_import_page"))
+        return redirect(import_destination)
     filename = secure_filename(uploaded.filename)
     target = incoming_dir() / filename
     target.parent.mkdir(parents=True, exist_ok=True)
     uploaded.save(target)
     try:
-        officer = None
-        if request.form["import_type"] != "training":
-            entered_officer = request.form.get("officer_id") or user["id"]
-            officer = find_user(entered_officer) or find_user_by_username(entered_officer)
-            if not officer:
-                raise ValueError("The selected officer was not found.")
-        result = import_local_file(
-            target,
-            import_type=request.form["import_type"],
-            default_officer_id=officer["id"] if officer else None,
-            from_date=request.form.get("from_date") or None,
-            to_date=request.form.get("to_date") or None,
-        )
+        result = import_local_file(target)
         flash(result["message"], "success")
     except Exception as exc:
         flash(f"Import failed: {exc}", "error")
-    return redirect(url_for("local_import_page"))
+    return redirect(import_destination)
 
 
 ## Figures out which officer the logged-in user is allowed to view.
@@ -346,19 +519,37 @@ def admin_page():
                 float(request.form["minimum_value"]),
             )
             flash("Readiness threshold saved.", "success")
+        elif action == "save_competency_source_weight":
+            save_competency_source_weight(dict(request.form))
+            flash("Competency source weight saved.", "success")
         elif action == "save_organisation":
             save_organisation_assignment(
                 request.form["officer_id"],
                 request.form.get("manager_id"),
                 request.form.get("team_name", ""),
+                request.form.get("trained_schemes", ""),
             )
             flash("Organisation assignment saved.", "success")
+        elif action == "save_organisation_all":
+            assignments = []
+            for officer_id in request.form.getlist("officer_id"):
+                assignments.append(
+                    {
+                        "officer_id": officer_id,
+                        "role": request.form.get(f"role_{officer_id}", ""),
+                        "manager_id": request.form.get(f"manager_id_{officer_id}", ""),
+                        "team_name": request.form.get(f"team_name_{officer_id}", ""),
+                    }
+                )
+            save_organisation_assignments(assignments)
+            flash("Organisation chart saved.", "success")
         elif action == "add_officer":
             add_officer(
                 request.form["username"],
                 request.form["name"],
                 request.form["role"],
                 request.form["password"],
+                request.form.get("team", ""),
             )
             flash("Officer added.", "success")
         elif action == "remove_officer":
@@ -370,8 +561,29 @@ def admin_page():
     return redirect(url_for("admin_page", tab=request.form.get("tab", "settings")))
 
 
+@app.route("/admin/build-daily-csv", methods=["POST"])
+@login_required
+def build_daily_csv_page():
+    user = current_user()
+    if user["role"] != "Admin":
+        abort(403)
+    try:
+        csv_text = build_daily_csv(request.files.getlist("source_files"))
+    except Exception as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin_page", tab="build_csv"))
 
-## Shows team-level officer performance, but only for TL/Supervisor/Admin.
+    return Response(
+        csv_text,
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=mirror_daily_import.csv"
+        },
+    )
+
+
+
+## Shows team-level officer performance, but only for TL/CSM/AH/Admin.
 @app.route("/team")
 @login_required
 def team():

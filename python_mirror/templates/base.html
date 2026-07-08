@@ -5,30 +5,49 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MIRROR</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v='flash-overlay-1') }}">
 </head>
 
 <body>
   {% if logged_in_user %}
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark">M</div>
+      <img class="brand-mark" src="{{ url_for('static', filename='img/cpf.jpeg') }}" alt="CPF">
       <div>
         <strong>MIRROR</strong>
-        <span>Competency Dashboard</span>
+        <span>Performance Dashboard</span>
       </div>
     </div>
 
     <nav>
       {% if logged_in_user.role != "Admin" or viewed_user.id != logged_in_user.id %}
-      <a href="{{ url_for('dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('readiness_page') }}">My Readiness</a>
-      <a href="{{ url_for('training_page') }}">Training & Recommendations</a>
+      <a class="{{ 'active' if request.endpoint == 'dashboard' else '' }}" href="{{ url_for('dashboard') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a class="{{ 'active' if request.endpoint == 'readiness_page' else '' }}" href="{{ url_for('readiness_page') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></span>
+        <span>My Readiness</span>
+      </a>
+      <a class="{{ 'active' if request.endpoint == 'training_page' else '' }}" href="{{ url_for('training_page') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
+        <span>Training & Recommendations</span>
+      </a>
+      <a class="{{ 'active' if request.endpoint == 'projects_page' else '' }}" href="{{ url_for('projects_page') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></span>
+        <span>Projects</span>
+      </a>
+      <a class="{{ 'active' if request.endpoint == 'local_import_page' else '' }}" href="{{ url_for('local_import_page') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></span>
+        <span>Local Import</span>
+      </a>
       {% endif %}
-      <a href="{{ url_for('local_import_page') }}">Local Import</a>
 
-      {% if logged_in_user.role in ["TL", "Supervisor"] and viewed_user.id == logged_in_user.id %}
-      <a href="{{ url_for('team') }}">Team Overview</a>
+      {% if logged_in_user.role in ["TL", "CSM", "AH"] and viewed_user.id == logged_in_user.id %}
+      <a class="{{ 'active' if request.endpoint == 'team' else '' }}" href="{{ url_for('team') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+        <span>Team Overview</span>
+      </a>
       {% endif %}
 
       {% if logged_in_user.role == "Admin" and viewed_user.id == logged_in_user.id %}
@@ -52,10 +71,26 @@
         </form>
         {% endif %}
       </section>
+      <a class="{{ 'active' if request.args.get('tab') == 'import' else '' }}"
+        href="{{ url_for('admin_page', tab='import') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></span>
+        <span>Local Import</span>
+      </a>
+      <a class="{{ 'active' if request.args.get('tab') == 'build_csv' else '' }}"
+        href="{{ url_for('admin_page', tab='build_csv') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
+        <span>Build Daily CSV</span>
+      </a>
       <a class="{{ 'active' if request.args.get('tab', 'settings') == 'settings' else '' }}"
-        href="{{ url_for('admin_page', tab='settings') }}">Weights & Thresholds</a>
+        href="{{ url_for('admin_page', tab='settings') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></span>
+        <span>Weights & Thresholds</span>
+      </a>
       <a class="{{ 'active' if request.args.get('tab') == 'organisation' else '' }}"
-        href="{{ url_for('admin_page', tab='organisation') }}">Organisation Chart</a>
+        href="{{ url_for('admin_page', tab='organisation') }}">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+        <span>Organisation Chart</span>
+      </a>
       {% endif %}
     </nav>
     <div class="sidebar-footer">
@@ -66,6 +101,15 @@
           <small>{{ logged_in_user.role }}</small>
         </div>
       </div>
+      <details class="password-panel">
+        <summary>Change Password</summary>
+        <form method="post" action="{{ url_for('change_own_password') }}">
+          <input name="current_password" type="password" placeholder="Current password" required>
+          <input name="new_password" type="password" placeholder="New password" minlength="8" required>
+          <input name="confirm_password" type="password" placeholder="Confirm password" minlength="8" required>
+          <button type="submit">Save Password</button>
+        </form>
+      </details>
       <form method="post" action="{{ url_for('logout') }}">
         <button class="ghost-button" type="submit">Logout</button>
       </form>

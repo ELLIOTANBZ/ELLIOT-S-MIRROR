@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('CSE', 'TL', 'Supervisor', 'Admin')),
+  role TEXT NOT NULL CHECK (role IN ('CSE', 'TL', 'CSM', 'AH', 'Admin')),
   record_version INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -24,12 +24,24 @@ CREATE TABLE IF NOT EXISTS audit_records (
 
 CREATE INDEX IF NOT EXISTS idx_audit_officer_date ON audit_records(officer_id, upload_date);
 
+CREATE TABLE IF NOT EXISTS scorecard_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  officer_id TEXT NOT NULL,
+  upload_date TEXT NOT NULL,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  record_version INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(officer_id, upload_date),
+  FOREIGN KEY(officer_id) REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS ess_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   officer_id TEXT NOT NULL,
   upload_date TEXT NOT NULL,
   rating REAL,
   feedback TEXT,
+  is_valid INTEGER NOT NULL DEFAULT 1,
   payload_json TEXT NOT NULL DEFAULT '{}',
   record_version INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -52,6 +64,20 @@ CREATE TABLE IF NOT EXISTS interactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_interactions_officer_date ON interactions(officer_id, upload_date);
+
+CREATE TABLE IF NOT EXISTS competency_evidence_scores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  officer_id TEXT NOT NULL,
+  source_type TEXT NOT NULL CHECK(source_type IN ('interaction', 'project')),
+  source_record_id INTEGER NOT NULL,
+  competency_name TEXT NOT NULL,
+  score REAL NOT NULL,
+  rationale TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(source_type, source_record_id, competency_name),
+  FOREIGN KEY(officer_id) REFERENCES users(id)
+);
+
 
 CREATE TABLE IF NOT EXISTS competency_overrides (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,8 +133,8 @@ CREATE TABLE IF NOT EXISTS readiness_settings (
   correspondence_weight REAL NOT NULL DEFAULT 0.15,
   performance_weight REAL NOT NULL DEFAULT 0.15,
   tenure_weight REAL NOT NULL DEFAULT 0.10,
-  development_weight REAL NOT NULL DEFAULT 0.10,
-  application_weight REAL NOT NULL DEFAULT 0.10,
+  development_weight REAL NOT NULL DEFAULT 0.20,
+  application_weight REAL NOT NULL DEFAULT 0.00,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -122,6 +148,15 @@ CREATE TABLE IF NOT EXISTS readiness_thresholds (
   PRIMARY KEY(stage, metric)
 );
 
+CREATE TABLE IF NOT EXISTS competency_source_weights (
+  competency_name TEXT PRIMARY KEY,
+  audit_weight REAL NOT NULL DEFAULT 0.30,
+  scorecard_weight REAL NOT NULL DEFAULT 0.30,
+  interaction_weight REAL NOT NULL DEFAULT 0.30,
+  project_weight REAL NOT NULL DEFAULT 0.10,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS training_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   officer_id TEXT NOT NULL,
@@ -133,6 +168,7 @@ CREATE TABLE IF NOT EXISTS training_records (
   status TEXT NOT NULL CHECK(status IN ('Pending', 'In Progress', 'Completed')),
   assigned_date TEXT,
   completed_date TEXT,
+  competency_gap TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(officer_id) REFERENCES users(id)
@@ -157,10 +193,35 @@ CREATE TABLE IF NOT EXISTS training_recommendations (
   FOREIGN KEY(officer_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS performance_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  officer_id TEXT NOT NULL,
+  period TEXT NOT NULL,
+  band TEXT NOT NULL,
+  score REAL NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(officer_id, period),
+  FOREIGN KEY(officer_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  officer_id TEXT NOT NULL,
+  project_name TEXT NOT NULL,
+  project_leads TEXT NOT NULL DEFAULT '',
+  requirements_text TEXT NOT NULL,
+  evidence_text TEXT NOT NULL DEFAULT '',
+  supervisor_comments TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(officer_id) REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS organisation_relationships (
   officer_id TEXT PRIMARY KEY,
   manager_id TEXT,
   team_name TEXT NOT NULL DEFAULT '',
+  trained_schemes TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(officer_id) REFERENCES users(id),
   FOREIGN KEY(manager_id) REFERENCES users(id)

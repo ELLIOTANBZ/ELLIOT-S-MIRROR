@@ -44,12 +44,18 @@ def init_db(path: Path | None = None) -> None:
     with connect(path) as conn:
       conn.executescript(schema.read_text(encoding="utf-8"))
       migrate_cso_role_to_cse(conn)
+      migrate_supervisor_to_csm_ah_roles(conn)
       remove_obsolete_readiness_columns(conn)
       ensure_column(conn, "readiness_settings", "development_weight", "REAL NOT NULL DEFAULT 0.10")
       ensure_column(conn, "readiness_settings", "application_weight", "REAL NOT NULL DEFAULT 0.10")
       ensure_column(conn, "training_records", "training_type", "TEXT NOT NULL DEFAULT 'Optional'")
       ensure_column(conn, "training_records", "description", "TEXT NOT NULL DEFAULT ''")
       ensure_column(conn, "training_records", "assigned_by", "TEXT NOT NULL DEFAULT 'CPF Board'")
+      ensure_column(conn, "training_records", "competency_gap", "TEXT NOT NULL DEFAULT ''")
+      ensure_column(conn, "organisation_relationships", "trained_schemes", "TEXT NOT NULL DEFAULT ''")
+      ensure_column(conn, "ess_records", "is_valid", "INTEGER NOT NULL DEFAULT 1")
+      ensure_column(conn, "project_records", "project_leads", "TEXT NOT NULL DEFAULT ''")
+      ensure_column(conn, "competency_source_weights", "scorecard_weight", "REAL NOT NULL DEFAULT 0.30")
 
 
 ## One-time migration for databases created before the CSO role was renamed CSE.
@@ -72,7 +78,7 @@ def migrate_cso_role_to_cse(conn: sqlite3.Connection) -> None:
               username TEXT NOT NULL UNIQUE,
               password_hash TEXT NOT NULL,
               name TEXT NOT NULL,
-              role TEXT NOT NULL CHECK (role IN ('CSE', 'TL', 'Supervisor', 'Admin')),
+              role TEXT NOT NULL CHECK (role IN ('CSE', 'TL', 'CSM', 'AH', 'Admin')),
               record_version INTEGER NOT NULL DEFAULT 1,
               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
@@ -84,7 +90,11 @@ def migrate_cso_role_to_cse(conn: sqlite3.Connection) -> None:
               username,
               password_hash,
               name,
-              CASE WHEN role = 'CSO' THEN 'CSE' ELSE role END,
+              CASE
+                WHEN role = 'CSO' THEN 'CSE'
+                WHEN role = 'Supervisor' THEN 'CSM'
+                ELSE role
+              END,
               record_version,
               updated_at
             FROM users;
@@ -103,13 +113,126 @@ def migrate_cso_role_to_cse(conn: sqlite3.Connection) -> None:
             SET role = 'CSE'
             WHERE role = 'CSO';
 
+            UPDATE readiness_settings
+            SET role = 'CSM'
+            WHERE role = 'Supervisor'
+              AND NOT EXISTS (
+                SELECT 1 FROM readiness_settings existing_settings
+                WHERE existing_settings.role = 'CSM'
+              );
+
+            DELETE FROM readiness_settings
+            WHERE role = 'Supervisor';
+
+            INSERT OR IGNORE INTO readiness_settings
+              (role, core_weight, functional_weight, correspondence_weight,
+               performance_weight, tenure_weight, development_weight,
+               application_weight, updated_at)
+            SELECT
+              'AH', core_weight, functional_weight, correspondence_weight,
+              performance_weight, tenure_weight, development_weight,
+              application_weight, updated_at
+            FROM readiness_settings
+            WHERE role = 'CSM';
+
             UPDATE career_profiles
             SET current_role = 'CSE'
             WHERE current_role = 'CSO';
 
             UPDATE career_profiles
+            SET current_role = 'CSM'
+            WHERE current_role = 'Supervisor';
+
+            UPDATE career_profiles
             SET target_role = 'CSE'
             WHERE target_role = 'CSO';
+
+            UPDATE career_profiles
+            SET target_role = 'CSM'
+            WHERE target_role = 'Supervisor';
+
+            UPDATE career_profiles
+            SET target_role = 'Senior CSM/AH'
+            WHERE target_role = 'Senior Supervisor';
+
+            COMMIT;
+            """
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
+## One-time migration so existing local databases stop using the old Supervisor role.
+def migrate_supervisor_to_csm_ah_roles(conn: sqlite3.Connection) -> None:
+    users_table = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'"
+    ).fetchone()
+    if not users_table or ("'CSM'" in users_table["sql"] and "'Supervisor'" not in users_table["sql"]):
+        return
+
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.executescript(
+            """
+            BEGIN;
+
+            CREATE TABLE users_new (
+              id TEXT PRIMARY KEY,
+              username TEXT NOT NULL UNIQUE,
+              password_hash TEXT NOT NULL,
+              name TEXT NOT NULL,
+              role TEXT NOT NULL CHECK (role IN ('CSE', 'TL', 'CSM', 'AH', 'Admin')),
+              record_version INTEGER NOT NULL DEFAULT 1,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            INSERT INTO users_new
+              (id, username, password_hash, name, role, record_version, updated_at)
+            SELECT id, username, password_hash, name,
+                   CASE WHEN role = 'Supervisor' THEN 'CSM' ELSE role END,
+                   record_version, updated_at
+            FROM users;
+
+            DROP TABLE users;
+            ALTER TABLE users_new RENAME TO users;
+
+            UPDATE readiness_settings
+            SET role = 'CSM'
+            WHERE role = 'Supervisor'
+              AND NOT EXISTS (
+                SELECT 1 FROM readiness_settings existing_settings
+                WHERE existing_settings.role = 'CSM'
+              );
+
+            DELETE FROM readiness_settings
+            WHERE role = 'Supervisor';
+
+            INSERT OR IGNORE INTO readiness_settings
+              (role, core_weight, functional_weight, correspondence_weight,
+               performance_weight, tenure_weight, development_weight,
+               application_weight, updated_at)
+            SELECT
+              'AH', core_weight, functional_weight, correspondence_weight,
+              performance_weight, tenure_weight, development_weight,
+              application_weight, updated_at
+            FROM readiness_settings
+            WHERE role = 'CSM';
+
+            UPDATE career_profiles
+            SET current_role = 'CSM'
+            WHERE current_role = 'Supervisor';
+
+            UPDATE career_profiles
+            SET target_role = 'CSM'
+            WHERE target_role = 'Supervisor';
+
+            UPDATE career_profiles
+            SET target_role = 'Senior CSM/AH'
+            WHERE target_role = 'Senior Supervisor';
 
             COMMIT;
             """

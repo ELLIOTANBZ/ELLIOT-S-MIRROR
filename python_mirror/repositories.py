@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from db import connect, dumps, loads, new_id, row_to_dict, rows_to_dicts
 ## connect()        opens SQLite connection
@@ -49,6 +49,31 @@ def authenticate(username: str, password: str) -> dict[str, Any] | None:
     if not user or not check_password_hash(user["password_hash"], password):
         return None
     return {k: user[k] for k in ("id", "username", "name", "role")}
+
+
+def change_password(user_id: str, current_password: str, new_password: str) -> None:
+    user = find_user(user_id)
+    if not user or not check_password_hash(user["password_hash"], current_password):
+        raise ValueError("Current password is incorrect.")
+    if len(new_password) < 8:
+        raise ValueError("New password must be at least 8 characters.")
+    new_hash = generate_password_hash(new_password)
+    with connect() as conn:
+        conn.execute(
+            """
+            UPDATE users
+            SET password_hash = ?, record_version = record_version + 1, updated_at = ?
+            WHERE id = ?
+            """,
+            (new_hash, utc_now(), user_id),
+        )
+        conn.commit()
+
+    updated_user = find_user(user_id)
+    if not updated_user or not check_password_hash(updated_user["password_hash"], new_password):
+        raise ValueError("Password change was not saved.")
+    if check_password_hash(updated_user["password_hash"], current_password):
+        raise ValueError("Password change did not replace the old password.")
 
 
 def list_users() -> list[dict[str, Any]]:

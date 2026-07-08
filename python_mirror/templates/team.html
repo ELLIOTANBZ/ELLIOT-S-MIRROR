@@ -9,6 +9,7 @@
   <a class="button-link" href="{{ url_for('changes') }}">Submit Change</a>
 </header>
 
+{% if data.show_leadership %}
 <section class="panel leadership-panel">
   <div class="row-between">
     <div>
@@ -34,6 +35,7 @@
     </div>
   </details>
 </section>
+{% endif %}
 
 <section class="panel">
   <h2>Team Overview</h2>

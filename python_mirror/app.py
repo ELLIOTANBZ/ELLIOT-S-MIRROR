@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -55,6 +56,7 @@ from services.team_data import team_portal_data
 from services.training_data import generate_training_keywords, generate_training_recommendations, training_for
 
 load_dotenv()               ## load .env
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 init_db()                   ## create SQLite tables if missing
 ensure_manual_dirs()        ## create local folders if missing
 
@@ -201,14 +203,23 @@ def dashboard():
 @login_required
 def generate_dashboard_ai_summary():
     visible, officer = resolve_visible_officer()
+    app.logger.info("Dashboard AI summary requested officer_id=%s", officer["id"])
     if not ai_is_configured():
         flash("AI is not configured, so the dashboard summary was not generated.", "error")
         return redirect(url_for("dashboard"))
 
     try:
-        analyse_officer(officer["id"], use_ai=True)
-        flash("AI dashboard summary generated.", "success")
+        result = analyse_officer(officer["id"], use_ai=True)
+        app.logger.info("Dashboard AI summary result officer_id=%s mode=%s", officer["id"], result.get("mode"))
+        if result.get("mode") == "local_rules_after_ai_error":
+            app.logger.error("Dashboard AI summary failed officer_id=%s error=%s", officer["id"], result.get("ai_error"))
+            flash(f"Could not generate dashboard AI summary: {result.get('ai_error')}", "error")
+        elif result.get("mode") == "ai_cached":
+            flash("AI dashboard summary was already up to date.", "success")
+        else:
+            flash("AI dashboard summary generated.", "success")
     except Exception as error:
+        app.logger.exception("Dashboard AI summary crashed officer_id=%s", officer["id"])
         flash(f"Could not generate dashboard AI summary: {error}", "error")
     return redirect(url_for("dashboard", officer_id=officer["id"]))
 

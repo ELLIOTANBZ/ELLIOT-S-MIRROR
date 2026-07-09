@@ -6,9 +6,8 @@ from datetime import date, timedelta
 from typing import Any
 
 from db import connect, loads
-from services.ai_client import ai_is_configured
 from services.calculations import average, percentage
-from services.competency_analysis import analyse_officer, officer_summary
+from services.competency_analysis import analyse_officer_cached_or_local, officer_summary
 from services.competency_scoring import (
     CORRESPONDENCE_COMPETENCIES,
     CORE_COMPETENCIES,
@@ -178,7 +177,7 @@ def flags_alerts(officer_id: str) -> dict[str, Any]:
 def dashboard_portal_data(officer_id: str, months: int = 3) -> dict[str, Any]:
     summary = officer_summary(officer_id)
     readiness = readiness_for(officer_id)
-    feedback = analyse_officer(officer_id, use_ai=ai_is_configured())
+    feedback = analyse_officer_cached_or_local(officer_id)
     months = months if months in {3, 6, 12} else 3
 
     latest_date = latest_evidence_date(officer_id)

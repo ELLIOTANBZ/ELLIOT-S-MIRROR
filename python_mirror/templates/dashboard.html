@@ -80,7 +80,13 @@
 
 <section class="feedback-grid">
   <article class="panel feedback-card">
-    <p class="eyebrow">AI Feedback Summary</p>
+    <div class="row-between">
+      <p class="eyebrow">AI Feedback Summary</p>
+      <form method="post" action="{{ url_for('generate_dashboard_ai_summary') }}">
+        <input type="hidden" name="officer_id" value="{{ officer.id }}">
+        <button type="submit">Generate AI Summary</button>
+      </form>
+    </div>
     <h2>{{ data.feedback.overall_level }} level</h2>
     {% if data.feedback.summary.assessment %}
     <p>{{ data.feedback.summary.assessment }}</p>

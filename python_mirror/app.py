@@ -24,6 +24,7 @@ from repositories import (
 from services.access_control import can_view_team, can_view_user, visible_users
 from services.access_control import SUPERVISOR_ROLES, TEAM_ROLES
 from services.ai_client import ai_is_configured
+from services.competency_analysis import analyse_officer
 from services.competency_scoring import score_evidence_for_officer, score_projects_for_officer
 from services.daily_csv_builder import build_daily_csv
 from services.dashboard_data import dashboard_portal_data
@@ -194,6 +195,22 @@ def dashboard():
         months=int(months) if months.isdigit() else 3,
     )
     return render_page("dashboard.html", data=data, users=visible, officer=officer)
+
+
+@app.route("/dashboard/generate-ai-summary", methods=["POST"])
+@login_required
+def generate_dashboard_ai_summary():
+    visible, officer = resolve_visible_officer()
+    if not ai_is_configured():
+        flash("AI is not configured, so the dashboard summary was not generated.", "error")
+        return redirect(url_for("dashboard"))
+
+    try:
+        analyse_officer(officer["id"], use_ai=True)
+        flash("AI dashboard summary generated.", "success")
+    except Exception as error:
+        flash(f"Could not generate dashboard AI summary: {error}", "error")
+    return redirect(url_for("dashboard", officer_id=officer["id"]))
 
 
 ## Shows the officer's readiness journey, thresholds, radar, and competency groups.

@@ -266,23 +266,34 @@ Data:
     return result
 
 
+def ai_cache_key(summary: dict[str, Any]) -> str:
+    summary_text = json.dumps(summary, ensure_ascii=True, sort_keys=True)
+    cache_material = f"{ai_provider()}:dashboard-summary-v2:{summary_text}"
+    return "competency-analysis:" + hashlib.sha256(
+        cache_material.encode("utf-8")
+    ).hexdigest()
+
+
+def cached_ai_analysis(summary: dict[str, Any]) -> dict[str, Any] | None:
+    cache_key = ai_cache_key(summary)
+    with connect() as conn:
+        cached_row = conn.execute(
+            "SELECT payload_json FROM ai_cache WHERE cache_key = ?",
+            (cache_key,),
+        ).fetchone()
+    if not cached_row:
+        return None
+    cached_result = loads(cached_row["payload_json"], {})
+    cached_result["mode"] = "ai_cached"
+    return cached_result
+
+
 ## main function
 def analyse_officer(officer_id: str, use_ai: bool) -> dict[str, Any]:
     summary = officer_summary(officer_id)
     if use_ai:
-        summary_text = json.dumps(summary, ensure_ascii=True, sort_keys=True)
-        cache_material = f"{ai_provider()}:dashboard-summary-v2:{summary_text}"
-        cache_key = "competency-analysis:" + hashlib.sha256(
-            cache_material.encode("utf-8")
-        ).hexdigest()
-        with connect() as conn:
-            cached_row = conn.execute(
-                "SELECT payload_json FROM ai_cache WHERE cache_key = ?",
-                (cache_key,),
-            ).fetchone()
-        if cached_row:
-            cached_result = loads(cached_row["payload_json"], {})
-            cached_result["mode"] = "ai_cached"
+        cached_result = cached_ai_analysis(summary)
+        if cached_result:
             return cached_result
         try:
             result = ai_analysis(summary)
@@ -292,7 +303,7 @@ def analyse_officer(officer_id: str, use_ai: bool) -> dict[str, Any]:
                     INSERT OR REPLACE INTO ai_cache (cache_key, payload_json, created_at)
                     VALUES (?, ?, CURRENT_TIMESTAMP)
                     """,
-                    (cache_key, dumps(result)),
+                    (ai_cache_key(summary), dumps(result)),
                 )
             return result
         except Exception as exc:
@@ -300,4 +311,12 @@ def analyse_officer(officer_id: str, use_ai: bool) -> dict[str, Any]:
             fallback["mode"] = "local_rules_after_ai_error"
             fallback["ai_error"] = str(exc)
             return fallback
+    return local_analysis(summary)
+
+
+def analyse_officer_cached_or_local(officer_id: str) -> dict[str, Any]:
+    summary = officer_summary(officer_id)
+    cached_result = cached_ai_analysis(summary)
+    if cached_result:
+        return cached_result
     return local_analysis(summary)

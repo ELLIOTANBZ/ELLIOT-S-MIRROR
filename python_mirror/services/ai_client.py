@@ -88,11 +88,23 @@ def azure_openai_chat(system_prompt: str, user_prompt: str) -> dict[str, Any]:
 def openai_chat(system_prompt: str, user_prompt: str) -> dict[str, Any]:
     key = os.getenv("OPENAI_API_KEY", "")
     model = os.getenv("OPENAI_MODEL", "")
+    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    use_api_key_header = os.getenv("OPENAI_API_KEY_HEADER", "").strip().lower() == "true"
+
     if not key or not model:
         raise RuntimeError("OpenAI is selected but key/model is missing in .env.")
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+    if use_api_key_header:
+        headers["api-key"] = key
+
     response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        f"{base_url}/chat/completions",
+        headers=headers,
         json={
             "model": model,
             "messages": [
@@ -104,8 +116,10 @@ def openai_chat(system_prompt: str, user_prompt: str) -> dict[str, Any]:
         },
         timeout=120,
     )
+
     if response.status_code >= 400:
         raise RuntimeError(f"OpenAI error {response.status_code}: {response.text}")
+
     content = response.json()["choices"][0]["message"]["content"]
     return parse_json_response(content)
 

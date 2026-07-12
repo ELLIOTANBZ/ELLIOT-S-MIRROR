@@ -4,7 +4,7 @@
   <div>
     <p class="eyebrow">Dashboard</p>
     <h1>{{ officer.name }}</h1>
-    <p>Your current career position, recent performance, and recommended next steps.</p>
+    <p>Your current career position, recent competency evidence, and recommended next steps.</p>
   </div>
   {% if logged_in_user.role == "Admin" %}
   <form method="get" class="selector">
@@ -19,62 +19,53 @@
   {% endif %}
 </header>
 
-<section class="panel career-pathway-card">
-  <div class="career-card">
-    <p class="eyebrow">Current Role</p>
-    <div class="role-title-box">
-      <div class="row-between">
-        <h2>{{ data.career.profile.current_role }}</h2>
-        <span class="status-badge">{{ data.career.stage }}</span>
-      </div>
-      <span>Your current position</span>
+<section class="dashboard-career-layout">
+  <article class="panel dashboard-readiness-meter">
+    <div>
+      <p class="eyebrow">Readiness</p>
+      <strong>{{ data.career.readiness_percent }}%</strong>
+      <span>towards the target role</span>
     </div>
-    <dl class="detail-list">
-      <div>
-        <dt>Time in role</dt>
-        <dd>{{ data.career.profile.years_in_role }} years</dd>
-      </div>
-      <div>
-        <dt>Readiness</dt>
-        <dd>{{ data.career.readiness_percent }}%</dd>
-      </div>
-      <div>
-        <dt>Team</dt>
-        <dd>{{ data.career.profile.team_name }}</dd>
-      </div>
-    </dl>
-    <h3>Key responsibilities</h3>
-    <ul class="plain-list">
-      {% for item in data.career.profile.responsibilities %}
-      <li>{{ item }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-
-  <div class="career-arrow" aria-hidden="true">→</div>
-
-  <div class="career-card target-card">
-    <p class="eyebrow">Target Role</p>
-    <div class="role-title-box target-role-title">
-      <h2>{{ data.career.profile.target_role }}</h2>
-      <span>Your next career goal</span>
+    <div class="bar large">
+      <div style="width: {{ data.career.readiness_percent }}%"></div>
     </div>
-    <dl class="detail-list">
-      <div>
-        <dt>Expected tenure</dt>
-        <dd>{{ data.career.profile.expected_tenure_years }} years</dd>
+  </article>
+
+  <div class="panel career-pathway-card">
+    <div class="career-card">
+      <p class="eyebrow">Current Role</p>
+      <div class="role-title-box">
+        <div class="row-between">
+          <h2>{{ data.career.profile.current_role }}</h2>
+          <span class="status-badge">{{ data.career.stage }}</span>
+        </div>
+        <span>Your current position</span>
+        <span>Team: {{ data.career.profile.team_name }}</span>
       </div>
-      <div>
-        <dt>Readiness threshold</dt>
-        <dd>85 score</dd>
+      <h3>Key responsibilities</h3>
+      <ul class="plain-list">
+        {% for item in data.career.profile.responsibilities %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="career-arrow" aria-hidden="true">&rarr;</div>
+
+    <div class="career-card target-card">
+      <p class="eyebrow">Target Role</p>
+      <div class="role-title-box target-role-title">
+        <h2>{{ data.career.profile.target_role }}</h2>
+        <span>Your next career goal</span>
+        <span> </span>
       </div>
-    </dl>
-    <h3>Key responsibilities</h3>
-    <ul class="plain-list">
-      {% for item in data.career.profile.target_responsibilities %}
-      <li>{{ item }}</li>
-      {% endfor %}
-    </ul>
+      <h3>Key responsibilities</h3>
+      <ul class="plain-list">
+        {% for item in data.career.profile.target_responsibilities %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
   </div>
 </section>
 

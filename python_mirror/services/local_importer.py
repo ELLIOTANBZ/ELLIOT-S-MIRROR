@@ -14,7 +14,6 @@ from repositories import utc_now
 from services.local_config import mapped_columns
 from services.ai_client import ai_is_configured
 from services.competency_scoring import (
-    PERFORMANCE_BAND_SCORES,
     score_interactions_for_officer,
     score_projects_for_officer,
 )
@@ -28,8 +27,6 @@ TEAM_COLUMNS = ("team_name", "Team Name", "team", "Team")
 TRAINED_SCHEMES_COLUMNS = ("trained_schemes", "Trained Schemes", "Schemes", "Trained In")
 CURRENT_ROLE_COLUMNS = ("current_role", "Current Role")
 TARGET_ROLE_COLUMNS = ("target_role", "Target Role")
-ROLE_START_DATE_COLUMNS = ("role_start_date", "Role Start Date", "Current Role Start Date", "Start Date In Role", "Start Date In Position")
-EXPECTED_TENURE_COLUMNS = ("expected_tenure_years", "Expected Tenure Years", "Expected Tenure", "Tenure Target")
 RESPONSIBILITIES_COLUMNS = ("responsibilities", "Key Responsibilities", "Current Responsibilities")
 TARGET_RESPONSIBILITIES_COLUMNS = ("target_responsibilities", "Target Responsibilities", "Next Role Responsibilities")
 SCORE_COLUMNS = ("total_score", "Total Score", "score", "Score", "Audit Score", "Percentage")
@@ -43,28 +40,19 @@ TRAINING_TITLE_COLUMNS = ("title", "Title", "training_name", "Training Name", "C
 TRAINING_PROVIDER_COLUMNS = ("provider", "Provider", "Training Provider", "Course Provider")
 TRAINING_TYPE_COLUMNS = ("training_type", "Training Type", "Mandatory/Optional", "Mandatory Optional", "Type")
 TRAINING_DESCRIPTION_COLUMNS = ("description", "Description", "Course Description", "Summary")
-TRAINING_ASSIGNED_BY_COLUMNS = ("assigned_by", "Assigned By", "Training Done By", "Done By")
 TRAINING_STATUS_COLUMNS = ("status", "Status", "Training Status")
 TRAINING_ASSIGNED_DATE_COLUMNS = ("assigned_date", "Assigned Date", "Start Date", "Date Assigned")
 TRAINING_COMPLETED_DATE_COLUMNS = ("completed_date", "Completed Date", "Completion Date", "Date Completed")
 TRAINING_COMPETENCY_GAP_COLUMNS = ("competency_gap", "Competency Gap", "Gap Addressed", "Competency Addressed")
-TRAINING_NOTES_COLUMNS = ("notes", "Notes", "Remarks", "Comments")
-PERFORMANCE_PERIOD_COLUMNS = ("period", "Period", "Year", "Review Period", "Performance Period")
-PERFORMANCE_BAND_COLUMNS = ("band", "Band", "Performance Band", "Performance Banding")
-PERFORMANCE_SCORE_COLUMNS = ("score", "Score", "Performance Score")
-PERFORMANCE_NOTES_COLUMNS = ("notes", "Notes", "Remarks", "Comments")
 PROJECT_NAME_COLUMNS = ("project_name", "Project Name", "Project", "Project Title")
 PROJECT_LEAD_COLUMNS = ("project_leads", "Project Leads", "Project Lead", "Lead")
 PROJECT_REQUIREMENTS_COLUMNS = ("requirements_text", "Requirements", "Required Work", "Success Criteria")
 PROJECT_EVIDENCE_COLUMNS = ("evidence_text", "Evidence", "What Was Done", "Work Done")
-PROJECT_COMMENTS_COLUMNS = ("supervisor_comments", "Project Lead Comments", "Supervisor Comments", "Comments", "Remarks")
+PROJECT_COMMENTS_COLUMNS = ("supervisor_comments", "Project Lead Comments", "Comments", "Remarks")
 READINESS_ROLE_COLUMNS = ("readiness_role", "Readiness Role", "Settings Role", "Weight Role")
 CORE_WEIGHT_COLUMNS = ("core_weight", "Core Weight", "Core Competency Weight")
 FUNCTIONAL_WEIGHT_COLUMNS = ("functional_weight", "Functional Weight", "Functional Competency Weight")
 CORRESPONDENCE_WEIGHT_COLUMNS = ("correspondence_weight", "Correspondence Weight", "Correspondence Competency Weight")
-PERFORMANCE_WEIGHT_COLUMNS = ("performance_weight", "Performance Weight", "Performance Banding Weight")
-PROJECTS_WEIGHT_COLUMNS = ("projects_weight", "Projects Weight", "Project Weight")
-EXPERIENCE_WEIGHT_COLUMNS = ("experience_weight", "Experience Weight", "Years Worked Weight", "Tenure Weight")
 THRESHOLD_STAGE_COLUMNS = ("threshold_stage", "Threshold Stage", "Readiness Stage", "Stage")
 THRESHOLD_METRIC_COLUMNS = ("threshold_metric", "Threshold Metric", "Metric")
 THRESHOLD_DISPLAY_COLUMNS = ("threshold_display_name", "Threshold Display Name", "Requirement Name")
@@ -72,6 +60,7 @@ THRESHOLD_MINIMUM_COLUMNS = ("threshold_minimum_value", "Threshold Minimum Value
 THRESHOLD_UNIT_COLUMNS = ("threshold_unit", "Threshold Unit", "Unit")
 THRESHOLD_SEQUENCE_COLUMNS = ("threshold_sequence", "Threshold Sequence", "Sequence", "Order")
 SOURCE_COMPETENCY_COLUMNS = ("source_competency", "Source Competency", "Competency Name")
+SOURCE_ROLE_COLUMNS = ("source_role", "Source Role", "Competency Source Role")
 SOURCE_AUDIT_WEIGHT_COLUMNS = ("source_audit_weight", "Source Audit Weight", "Audit Source Weight")
 SOURCE_SCORECARD_WEIGHT_COLUMNS = ("source_scorecard_weight", "Source Scorecard Weight", "Scorecard Source Weight")
 SOURCE_INTERACTION_WEIGHT_COLUMNS = ("source_interaction_weight", "Source Interaction Weight", "Interaction Source Weight")
@@ -235,13 +224,6 @@ def clean_boolean(value: Any, default: bool = True) -> bool:
     if text in {"0", "no", "n", "false", "invalid"}:
         return False
     return default
-
-
-def clean_performance_band(value: Any) -> str:
-    band = str(value or "").strip()
-    if band not in PERFORMANCE_BAND_SCORES:
-        raise ValueError(f"Unknown performance band: {band}")
-    return band
 
 
 def clean_role(value: Any) -> str | None:
@@ -520,12 +502,10 @@ def import_training(frame: pd.DataFrame) -> dict[str, Any]:
     provider_col = configured_column(frame, "training", "provider", TRAINING_PROVIDER_COLUMNS)
     type_col = configured_column(frame, "training", "training_type", TRAINING_TYPE_COLUMNS)
     description_col = configured_column(frame, "training", "description", TRAINING_DESCRIPTION_COLUMNS)
-    assigned_by_col = configured_column(frame, "training", "assigned_by", TRAINING_ASSIGNED_BY_COLUMNS)
     status_col = configured_column(frame, "training", "status", TRAINING_STATUS_COLUMNS)
     assigned_date_col = configured_column(frame, "training", "assigned_date", TRAINING_ASSIGNED_DATE_COLUMNS)
     completed_date_col = configured_column(frame, "training", "completed_date", TRAINING_COMPLETED_DATE_COLUMNS)
     competency_gap_col = configured_column(frame, "training", "competency_gap", TRAINING_COMPETENCY_GAP_COLUMNS)
-    notes_col = configured_column(frame, "training", "notes", TRAINING_NOTES_COLUMNS)
 
     if not officer_col:
         raise ValueError("Training import needs an officer column, such as username, officer_id, or officer name.")
@@ -548,10 +528,8 @@ def import_training(frame: pd.DataFrame) -> dict[str, Any]:
         completed_date = clean_optional_date(row[completed_date_col]) if completed_date_col else None
         status = clean_training_status(row[status_col] if status_col else "", completed_date)
         provider = str(row[provider_col]).strip() if provider_col else "CPF Board"
-        assigned_by = str(row[assigned_by_col]).strip() if assigned_by_col else "CPF Board"
         description = str(row[description_col]).strip() if description_col else ""
         competency_gap = str(row[competency_gap_col]).strip() if competency_gap_col else ""
-        notes = str(row[notes_col]).strip() if notes_col else ""
         training_type = clean_training_type(row[type_col] if type_col else "")
 
         rows_to_insert.append(
@@ -561,12 +539,12 @@ def import_training(frame: pd.DataFrame) -> dict[str, Any]:
                 provider or "CPF Board",
                 training_type,
                 description,
-                assigned_by or "CPF Board",
+                "",
                 status,
                 assigned_date,
                 completed_date,
                 competency_gap,
-                notes,
+                "",
                 utc_now(),
             )
         )
@@ -602,8 +580,6 @@ def has_profile_columns(frame: pd.DataFrame) -> bool:
         + TRAINED_SCHEMES_COLUMNS
         + CURRENT_ROLE_COLUMNS
         + TARGET_ROLE_COLUMNS
-        + ROLE_START_DATE_COLUMNS
-        + EXPECTED_TENURE_COLUMNS
         + RESPONSIBILITIES_COLUMNS
         + TARGET_RESPONSIBILITIES_COLUMNS
         + MANAGER_COLUMNS
@@ -622,8 +598,6 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
     schemes_col = configured_column(frame, "profile", "trained_schemes", TRAINED_SCHEMES_COLUMNS)
     current_role_col = configured_column(frame, "profile", "current_role", CURRENT_ROLE_COLUMNS)
     target_role_col = configured_column(frame, "profile", "target_role", TARGET_ROLE_COLUMNS)
-    role_start_col = configured_column(frame, "profile", "role_start_date", ROLE_START_DATE_COLUMNS)
-    tenure_col = configured_column(frame, "profile", "expected_tenure_years", EXPECTED_TENURE_COLUMNS)
     responsibilities_col = configured_column(frame, "profile", "responsibilities", RESPONSIBILITIES_COLUMNS)
     target_responsibilities_col = configured_column(frame, "profile", "target_responsibilities", TARGET_RESPONSIBILITIES_COLUMNS)
 
@@ -649,19 +623,15 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
         if user_role:
             user_role_rows.append((user_role, officer_id))
         target_role = str(row[target_role_col]).strip() if target_role_col else ""
-        role_start_date = clean_optional_date(row[role_start_col]) if role_start_col and str(row[role_start_col]).strip() else None
-        expected_tenure = clean_number(row[tenure_col]) if tenure_col else None
         responsibilities = split_list_text(row[responsibilities_col]) if responsibilities_col else []
         target_responsibilities = split_list_text(row[target_responsibilities_col]) if target_responsibilities_col else []
 
-        if any([current_role, target_role, role_start_date, expected_tenure, responsibilities, target_responsibilities]):
+        if any([current_role, target_role, responsibilities, target_responsibilities]):
             profile_rows.append(
                 (
                     officer_id,
                     current_role,
                     target_role,
-                    role_start_date,
-                    expected_tenure,
                     dumps(responsibilities),
                     dumps(target_responsibilities),
                 )
@@ -686,15 +656,11 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO career_profiles
-                  (officer_id, current_role, target_role, role_start_date,
-                   expected_tenure_years, responsibilities_json,
-                   target_responsibilities_json, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  (officer_id, current_role, target_role, responsibilities_json, target_responsibilities_json, updated_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(officer_id) DO UPDATE SET
                   current_role = COALESCE(NULLIF(excluded.current_role, ''), career_profiles.current_role),
                   target_role = COALESCE(NULLIF(excluded.target_role, ''), career_profiles.target_role),
-                  role_start_date = COALESCE(excluded.role_start_date, career_profiles.role_start_date),
-                  expected_tenure_years = COALESCE(excluded.expected_tenure_years, career_profiles.expected_tenure_years),
                   responsibilities_json = CASE
                     WHEN excluded.responsibilities_json != '[]' THEN excluded.responsibilities_json
                     ELSE career_profiles.responsibilities_json
@@ -766,76 +732,12 @@ def has_interaction_columns(frame: pd.DataFrame) -> bool:
     )
 
 
-def has_performance_columns(frame: pd.DataFrame) -> bool:
-    return (
-        configured_column(frame, "performance", "officer_id", OFFICER_COLUMNS) is not None
-        and configured_column(frame, "performance", "period", PERFORMANCE_PERIOD_COLUMNS) is not None
-        and configured_column(frame, "performance", "band", PERFORMANCE_BAND_COLUMNS) is not None
-    )
-
-
 def has_project_columns(frame: pd.DataFrame) -> bool:
     return (
         configured_column(frame, "projects", "officer_id", OFFICER_COLUMNS) is not None
         and configured_column(frame, "projects", "project_name", PROJECT_NAME_COLUMNS) is not None
         and configured_column(frame, "projects", "requirements_text", PROJECT_REQUIREMENTS_COLUMNS) is not None
     )
-
-
-def import_performance(frame: pd.DataFrame) -> dict[str, Any]:
-    officer_col = configured_column(frame, "performance", "officer_id", OFFICER_COLUMNS)
-    period_col = configured_column(frame, "performance", "period", PERFORMANCE_PERIOD_COLUMNS)
-    band_col = configured_column(frame, "performance", "band", PERFORMANCE_BAND_COLUMNS)
-    score_col = configured_column(frame, "performance", "score", PERFORMANCE_SCORE_COLUMNS)
-    notes_col = configured_column(frame, "performance", "notes", PERFORMANCE_NOTES_COLUMNS)
-
-    if not officer_col:
-        raise ValueError("Performance import needs an officer column.")
-    if not period_col:
-        raise ValueError("Performance import needs a period column.")
-    if not band_col:
-        raise ValueError("Performance import needs a performance band column.")
-
-    lookup = user_lookup()
-    rows_to_insert = []
-    skipped = 0
-
-    for _, row in frame.fillna("").iterrows():
-        officer_id = resolve_uploaded_officer_id(row[officer_col], lookup)
-        period = str(row[period_col]).strip()
-        if not officer_id or not period:
-            skipped += 1
-            continue
-        band = clean_performance_band(row[band_col])
-        score = clean_number(row[score_col]) if score_col else None
-        if score is None:
-            score = PERFORMANCE_BAND_SCORES[band]
-        rows_to_insert.append(
-            (
-                officer_id,
-                period,
-                band,
-                score,
-                str(row[notes_col]).strip() if notes_col else "",
-            )
-        )
-
-    with connect() as conn:
-        conn.executemany(
-            """
-            INSERT INTO performance_records
-              (officer_id, period, band, score, notes, updated_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(officer_id, period) DO UPDATE SET
-              band = excluded.band,
-              score = excluded.score,
-              notes = excluded.notes,
-              updated_at = CURRENT_TIMESTAMP
-            """,
-            rows_to_insert,
-        )
-
-    return {"imported": len(rows_to_insert), "skipped": skipped}
 
 
 def import_projects(frame: pd.DataFrame) -> dict[str, Any]:
@@ -972,9 +874,6 @@ def has_readiness_settings_columns(frame: pd.DataFrame) -> bool:
         CORE_WEIGHT_COLUMNS
         + FUNCTIONAL_WEIGHT_COLUMNS
         + CORRESPONDENCE_WEIGHT_COLUMNS
-        + PERFORMANCE_WEIGHT_COLUMNS
-        + PROJECTS_WEIGHT_COLUMNS
-        + EXPERIENCE_WEIGHT_COLUMNS
     )
     return (
         configured_column(frame, "readiness_settings", "role", READINESS_ROLE_COLUMNS) is not None
@@ -992,7 +891,8 @@ def has_readiness_threshold_columns(frame: pd.DataFrame) -> bool:
 
 def has_competency_source_weight_columns(frame: pd.DataFrame) -> bool:
     return (
-        configured_column(frame, "competency_source_weights", "competency_name", SOURCE_COMPETENCY_COLUMNS) is not None
+        configured_column(frame, "competency_source_weights", "role", SOURCE_ROLE_COLUMNS) is not None
+        and configured_column(frame, "competency_source_weights", "competency_name", SOURCE_COMPETENCY_COLUMNS) is not None
         and configured_column(frame, "competency_source_weights", "audit_weight", SOURCE_AUDIT_WEIGHT_COLUMNS) is not None
         and configured_column(frame, "competency_source_weights", "scorecard_weight", SOURCE_SCORECARD_WEIGHT_COLUMNS) is not None
         and configured_column(frame, "competency_source_weights", "interaction_weight", SOURCE_INTERACTION_WEIGHT_COLUMNS) is not None
@@ -1005,21 +905,15 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
     core_col = configured_column(frame, "readiness_settings", "core_weight", CORE_WEIGHT_COLUMNS)
     functional_col = configured_column(frame, "readiness_settings", "functional_weight", FUNCTIONAL_WEIGHT_COLUMNS)
     correspondence_col = configured_column(frame, "readiness_settings", "correspondence_weight", CORRESPONDENCE_WEIGHT_COLUMNS)
-    performance_col = configured_column(frame, "readiness_settings", "performance_weight", PERFORMANCE_WEIGHT_COLUMNS)
-    projects_col = configured_column(frame, "readiness_settings", "projects_weight", PROJECTS_WEIGHT_COLUMNS)
-    experience_col = configured_column(frame, "readiness_settings", "experience_weight", EXPERIENCE_WEIGHT_COLUMNS)
 
     required_columns = [
         role_col,
         core_col,
         functional_col,
         correspondence_col,
-        performance_col,
-        projects_col,
-        experience_col,
     ]
     if any(column is None for column in required_columns):
-        raise ValueError("Readiness settings import needs role and all six weight columns.")
+        raise ValueError("Readiness settings import needs role, core, functional, and correspondence weight columns.")
 
     settings_by_role = {}
     skipped = 0
@@ -1031,9 +925,6 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
             "core_weight": clean_number(row[core_col]),
             "functional_weight": clean_number(row[functional_col]),
             "correspondence_weight": clean_number(row[correspondence_col]),
-            "performance_weight": clean_number(row[performance_col]),
-            "development_weight": clean_number(row[projects_col]),
-            "tenure_weight": clean_number(row[experience_col]),
         }
         if any(value is None for value in weights.values()):
             skipped += 1
@@ -1048,18 +939,12 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO readiness_settings
-                  (role, core_weight, functional_weight, correspondence_weight,
-                   performance_weight, tenure_weight, development_weight,
-                   application_weight, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+                  (role, core_weight, functional_weight, correspondence_weight, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(role) DO UPDATE SET
                   core_weight = excluded.core_weight,
                   functional_weight = excluded.functional_weight,
                   correspondence_weight = excluded.correspondence_weight,
-                  performance_weight = excluded.performance_weight,
-                  tenure_weight = excluded.tenure_weight,
-                  development_weight = excluded.development_weight,
-                  application_weight = 0,
                   updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -1067,9 +952,6 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
                     weights["core_weight"],
                     weights["functional_weight"],
                     weights["correspondence_weight"],
-                    weights["performance_weight"],
-                    weights["tenure_weight"],
-                    weights["development_weight"],
                 ),
             )
 
@@ -1119,17 +1001,19 @@ def import_readiness_thresholds(frame: pd.DataFrame) -> dict[str, Any]:
 
 
 def import_competency_source_weights(frame: pd.DataFrame) -> dict[str, Any]:
+    role_col = configured_column(frame, "competency_source_weights", "role", SOURCE_ROLE_COLUMNS)
     competency_col = configured_column(frame, "competency_source_weights", "competency_name", SOURCE_COMPETENCY_COLUMNS)
     audit_col = configured_column(frame, "competency_source_weights", "audit_weight", SOURCE_AUDIT_WEIGHT_COLUMNS)
     scorecard_col = configured_column(frame, "competency_source_weights", "scorecard_weight", SOURCE_SCORECARD_WEIGHT_COLUMNS)
     interaction_col = configured_column(frame, "competency_source_weights", "interaction_weight", SOURCE_INTERACTION_WEIGHT_COLUMNS)
     project_col = configured_column(frame, "competency_source_weights", "project_weight", SOURCE_PROJECT_WEIGHT_COLUMNS)
 
-    weights_by_competency = {}
+    weights_by_role_and_competency = {}
     skipped = 0
     for _, row in frame.fillna("").iterrows():
+        role = clean_role(row[role_col])
         competency_name = str(row[competency_col]).strip()
-        if not competency_name:
+        if not role or not competency_name:
             continue
         weights = {
             "audit_weight": clean_number(row[audit_col]),
@@ -1140,19 +1024,29 @@ def import_competency_source_weights(frame: pd.DataFrame) -> dict[str, Any]:
         if any(value is None for value in weights.values()):
             skipped += 1
             continue
-        total_weight = sum(weights.values())
-        if abs(total_weight - 1) > 0.001:
-            raise ValueError(f"Source weights for {competency_name} must add up to 1.00.")
-        weights_by_competency[competency_name] = weights
+        if role == "AH":
+            weights = {
+                "audit_weight": 0.0,
+                "scorecard_weight": 0.0,
+                "interaction_weight": 0.0,
+                "project_weight": 1.0,
+            }
+        else:
+            total_weight = weights["audit_weight"] + weights["scorecard_weight"] + weights["interaction_weight"]
+            if abs(total_weight - 1) > 0.001:
+                raise ValueError(f"Audit, scorecard, and interaction source weights for {role} {competency_name} must add up to 1.00.")
+            if weights["project_weight"] < 0:
+                raise ValueError(f"Project weight for {role} {competency_name} cannot be negative.")
+        weights_by_role_and_competency[(role, competency_name)] = weights
 
     with connect() as conn:
-        for competency_name, weights in weights_by_competency.items():
+        for (role, competency_name), weights in weights_by_role_and_competency.items():
             conn.execute(
                 """
                 INSERT INTO competency_source_weights
-                  (competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight, updated_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(competency_name) DO UPDATE SET
+                  (role, competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(role, competency_name) DO UPDATE SET
                   audit_weight = excluded.audit_weight,
                   scorecard_weight = excluded.scorecard_weight,
                   interaction_weight = excluded.interaction_weight,
@@ -1160,6 +1054,7 @@ def import_competency_source_weights(frame: pd.DataFrame) -> dict[str, Any]:
                   updated_at = CURRENT_TIMESTAMP
                 """,
                 (
+                    role,
                     competency_name,
                     weights["audit_weight"],
                     weights["scorecard_weight"],
@@ -1168,13 +1063,17 @@ def import_competency_source_weights(frame: pd.DataFrame) -> dict[str, Any]:
                 ),
             )
 
-    return {"imported": len(weights_by_competency), "skipped": skipped}
+    return {"imported": len(weights_by_role_and_competency), "skipped": skipped}
 
 
 def import_daily_admin_file(frame: pd.DataFrame) -> dict[str, Any]:
     parts = []
     total_imported = 0
     total_skipped = 0
+    filled_frame = frame.fillna("")
+    lookup = user_lookup()
+    officer_col = configured_column(filled_frame, "profile", "officer_id", OFFICER_COLUMNS)
+    affected_officer_ids = collect_officer_ids(filled_frame, officer_col, lookup) if officer_col else set()
 
     if has_profile_columns(frame):
         result = import_profiles(frame)
@@ -1184,26 +1083,26 @@ def import_daily_admin_file(frame: pd.DataFrame) -> dict[str, Any]:
 
     if has_audit_columns(frame):
         date_col = configured_column(frame, "audit", "upload_date", DATE_COLUMNS)
-        result_count = import_audit(frame.fillna(""), date_col)
+        result_count = import_audit(filled_frame, date_col)
         parts.append(f"{result_count} audit")
         total_imported += result_count
 
     if has_scorecard_columns(frame):
         date_col = configured_column(frame, "scorecard", "upload_date", DATE_COLUMNS)
-        result = import_scorecard(frame.fillna(""), date_col)
+        result = import_scorecard(filled_frame, date_col)
         parts.append(f"{result['imported']} scorecard")
         total_imported += result["imported"]
         total_skipped += result["skipped"]
 
     if has_ess_columns(frame):
         date_col = configured_column(frame, "ess", "upload_date", DATE_COLUMNS)
-        result_count = import_ess(frame.fillna(""), date_col)
+        result_count = import_ess(filled_frame, date_col)
         parts.append(f"{result_count} ESS")
         total_imported += result_count
 
     if has_interaction_columns(frame):
         date_col = configured_column(frame, "interactions", "upload_date", DATE_COLUMNS)
-        result = import_interactions(frame.fillna(""), date_col)
+        result = import_interactions(filled_frame, date_col)
         parts.append(f"{result['imported']} interaction")
         if result["ai_scored_officers"]:
             parts.append(f"AI-scored interactions for {result['ai_scored_officers']} officer(s)")
@@ -1216,12 +1115,6 @@ def import_daily_admin_file(frame: pd.DataFrame) -> dict[str, Any]:
     if has_training_columns(frame):
         result = import_training(frame)
         parts.append(f"{result['imported']} training")
-        total_imported += result["imported"]
-        total_skipped += result["skipped"]
-
-    if has_performance_columns(frame):
-        result = import_performance(frame)
-        parts.append(f"{result['imported']} performance banding")
         total_imported += result["imported"]
         total_skipped += result["skipped"]
 
@@ -1255,14 +1148,32 @@ def import_daily_admin_file(frame: pd.DataFrame) -> dict[str, Any]:
         total_imported += result["imported"]
         total_skipped += result["skipped"]
 
+    if affected_officer_ids and ai_is_configured():
+        from services.readiness_data import generate_and_cache_competency_development_summaries
+
+        cached_officers = 0
+        failed_officers = 0
+        for officer_id in affected_officer_ids:
+            try:
+                if generate_and_cache_competency_development_summaries(officer_id):
+                    cached_officers += 1
+            except Exception:
+                failed_officers += 1
+        if cached_officers:
+            parts.append(f"AI-cached readiness summaries for {cached_officers} officer(s)")
+        if failed_officers:
+            parts.append(f"readiness AI summaries failed for {failed_officers} officer(s)")
+    elif affected_officer_ids:
+        parts.append("readiness AI summaries skipped because AI is not configured")
+
     if not parts:
         raise ValueError(
-            "The daily admin file needs profile, audit, ESS, interactions, training, performance banding, project evidence, readiness settings, readiness threshold, or competency source weight columns."
+            "The daily admin file needs profile, audit, scorecard, ESS, interactions, training, project evidence, readiness settings, readiness threshold, or competency source weight columns."
         )
 
-    message = "Imported " + ", ".join(parts) + " rows."
+    message = "Imported " + ", ".join(parts) + "."
     if total_skipped:
-        message += f" Skipped {total_skipped} incomplete rows."
+        message += f" Ignored {total_skipped} incomplete or non-applicable rows."
     return {"imported": total_imported, "message": message}
 
 
@@ -1272,3 +1183,14 @@ def import_local_file(
 ) -> dict[str, Any]:
     frame = read_table(path)
     return import_daily_admin_file(frame)
+
+
+def import_org_chart_file(path: Path) -> dict[str, Any]:
+    frame = read_table(path)
+    if not has_profile_columns(frame):
+        raise ValueError("Org chart import needs officer_id plus org/profile columns such as Officer Role, Manager ID, or Team Name.")
+    result = import_profiles(frame)
+    message = f"Imported {result['imported']} org chart/profile rows."
+    if result["skipped"]:
+        message += f" Skipped {result['skipped']} rows that did not match an existing officer."
+    return {"imported": result["imported"], "message": message}

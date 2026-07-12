@@ -286,145 +286,145 @@ Return JSON in this exact shape:
 ## 4. Delete old AI recommendations for that officer
 ## 5. Insert new recommendations into training_recommendations
 ## 6. Return number inserted
-def generate_training_recommendations(officer_id: str) -> int:
-    if not ai_is_configured():
-        raise RuntimeError(
-            "AI is not configured yet. Fill AI_PROVIDER and the matching API settings in python_mirror/.env."
-        )
+# def generate_training_recommendations(officer_id: str) -> int:
+#     if not ai_is_configured():
+#         raise RuntimeError(
+#             "AI is not configured yet. Fill AI_PROVIDER and the matching API settings in python_mirror/.env."
+#         )
 
-    analysis = analyse_officer(officer_id, use_ai=ai_is_configured())
+#     analysis = analyse_officer(officer_id, use_ai=ai_is_configured())
 
-    courses = load_course_catalogue()
+#     courses = load_course_catalogue()
 
-    ranked_courses = sorted(
-        courses,
-        key=lambda course: course_matches_analysis(course, analysis),           ## key expects a function, course -> course_matches_analysis(course, analysis)
-        reverse=True,
-    )
+#     ranked_courses = sorted(
+#         courses,
+#         key=lambda course: course_matches_analysis(course, analysis),           ## key expects a function, course -> course_matches_analysis(course, analysis)
+#         reverse=True,
+#     )
 
-    best_courses = ranked_courses[:80]
+#     best_courses = ranked_courses[:80]
 
-    course_options = [
-        {
-            "title": course["title"],
-            "start_date": course["start_date"],
-            "price": course["price"],
-            "product_type": course["product_type"],
-            "duration": course["duration"],
-            "course_url": course["course_url"],
-            "provider": course["provider"],
-            "description": course["description"],
-            "learning_outcomes": course["learning_outcomes"],
-            "who_should_attend": course["who_should_attend"],
-        }
-        for course in best_courses
-    ]
+#     course_options = [
+#         {
+#             "title": course["title"],
+#             "start_date": course["start_date"],
+#             "price": course["price"],
+#             "product_type": course["product_type"],
+#             "duration": course["duration"],
+#             "course_url": course["course_url"],
+#             "provider": course["provider"],
+#             "description": course["description"],
+#             "learning_outcomes": course["learning_outcomes"],
+#             "who_should_attend": course["who_should_attend"],
+#         }
+#         for course in best_courses
+#     ]
 
-    system = (
-        "You recommend training courses for a public service officer. "
-        "You must recommend only courses from the Available courses list."
-        "Do not invent course names, links, providers, dates, prices, product types, or durations."
-        "Return only valid JSON."
-    )
+#     system = (
+#         "You recommend training courses for a public service officer. "
+#         "You must recommend only courses from the Available courses list."
+#         "Do not invent course names, links, providers, dates, prices, product types, or durations."
+#         "Return only valid JSON."
+#     )
 
-    user = f"""
-Recommend some training courses for this officer.
+#     user = f"""
+# Recommend some training courses for this officer.
 
-Officer analysis:
-{json.dumps(analysis, ensure_ascii=True)}
+# Officer analysis:
+# {json.dumps(analysis, ensure_ascii=True)}
 
-Available courses:
-{json.dumps(course_options, ensure_ascii=True)}
+# Available courses:
+# {json.dumps(course_options, ensure_ascii=True)}
 
-Use these fields:
-- title
-- start_date
-- price
-- product_type
-- duration
-- course_url
-- provider
-- description
-- learning_outcomes
-- who_should_attend
-- training_type
-- competency_gap
+# Use these fields:
+# - title
+# - start_date
+# - price
+# - product_type
+# - duration
+# - course_url
+# - provider
+# - description
+# - learning_outcomes
+# - who_should_attend
+# - training_type
+# - competency_gap
 
-Rules:
-- Do not invent course URLs.
-- If an exact official course page URL is not known, use an empty string for course_url.
-- Recommend only courses from Available courses.
-- Use the exact title, provider, course_url, start_date, price, product_type, and duration from Available courses.
-- For competency_gap, list all officer competency gaps this course helps to address.
-- If there are multiple gaps, separate them with semicolons, for example: "Working as a Team; Data Management".
-- Use the officer analysis and the course's description, learning_outcomes, and who_should_attend to decide the gaps.- Prefer courses where the description, learning_outcomes, or who_should_attend match the officer's gaps.
-- Choose training_type as "Mandatory" only if the course is important to close a serious competency gap. Use the officer analysis and the course's description, learning_outcomes, and who_should_attend to figure this out. Otherwise choose training_type as "Optional".
-
-
-Return JSON in this exact shape:
-{{
-    "recommendations": [
-        {{
-            "title": "exact course title",
-            "start_date": "exact start_date",
-            "price": "exact price",
-            "product_type": "exact product_type",
-            "duration": "exact duration",
-            "course_url": "exact course_url from Available courses",
-            "provider": "exact provider",
-            "training_type": "Mandatory or Optional only",
-            "description": "short explanation of why this course is suitable",
-            "learning_outcomes": "exact learning_outcomes from Available courses",
-            "who_should_attend": "exact who_should_attend from Available courses",
-            "competency_gap": "one or more gaps this course addresses, separated by semicolons",
-        }}
-    ]
-}}
-"""
+# Rules:
+# - Do not invent course URLs.
+# - If an exact official course page URL is not known, use an empty string for course_url.
+# - Recommend only courses from Available courses.
+# - Use the exact title, provider, course_url, start_date, price, product_type, and duration from Available courses.
+# - For competency_gap, list all officer competency gaps this course helps to address.
+# - If there are multiple gaps, separate them with semicolons, for example: "Working as a Team; Data Management".
+# - Use the officer analysis and the course's description, learning_outcomes, and who_should_attend to decide the gaps.- Prefer courses where the description, learning_outcomes, or who_should_attend match the officer's gaps.
+# - Choose training_type as "Mandatory" only if the course is important to close a serious competency gap. Use the officer analysis and the course's description, learning_outcomes, and who_should_attend to figure this out. Otherwise choose training_type as "Optional".
 
 
-    result = chat(system, user)
-    recommendations = result.get("recommendations", [])
-    inserted = 0
+# Return JSON in this exact shape:
+# {{
+#     "recommendations": [
+#         {{
+#             "title": "exact course title",
+#             "start_date": "exact start_date",
+#             "price": "exact price",
+#             "product_type": "exact product_type",
+#             "duration": "exact duration",
+#             "course_url": "exact course_url from Available courses",
+#             "provider": "exact provider",
+#             "training_type": "Mandatory or Optional only",
+#             "description": "short explanation of why this course is suitable",
+#             "learning_outcomes": "exact learning_outcomes from Available courses",
+#             "who_should_attend": "exact who_should_attend from Available courses",
+#             "competency_gap": "one or more gaps this course addresses, separated by semicolons",
+#         }}
+#     ]
+# }}
+# """
 
-    with connect() as conn:
-        conn.execute(
-            "DELETE FROM training_recommendations WHERE officer_id = ?",
-            (officer_id,),
-        )
 
-        for item in recommendations:
-            title = item.get("title", "").strip()
-            if not title:
-                continue
+#     result = chat(system, user)
+#     recommendations = result.get("recommendations", [])
+#     inserted = 0
 
-            training_type = item.get("training_type", "").strip()
-            if training_type not in {"Mandatory", "Optional"}:
-                training_type = "Optional"
+#     with connect() as conn:
+#         conn.execute(
+#             "DELETE FROM training_recommendations WHERE officer_id = ?",
+#             (officer_id,),
+#         )
 
-            conn.execute(
-                """
-                INSERT INTO training_recommendations
-                (officer_id, title, start_date, price, product_type, duration, course_url, provider, training_type, description, learning_outcomes, who_should_attend, competency_gap, updated_at)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """,
-                (
-                    officer_id,
-                    title,
-                    item.get("start_date", ""),
-                    item.get("price", ""),
-                    item.get("product_type", ""),
-                    item.get("duration", ""),
-                    item.get("course_url", ""),
-                    item.get("provider", ""),
-                    training_type,
-                    item.get("description", ""),
-                    item.get("learning_outcomes", ""),
-                    item.get("who_should_attend", ""),
-                    item.get("competency_gap", ""),
-                )
-            )
-            inserted += 1
+#         for item in recommendations:
+#             title = item.get("title", "").strip()
+#             if not title:
+#                 continue
 
-    return inserted
+#             training_type = item.get("training_type", "").strip()
+#             if training_type not in {"Mandatory", "Optional"}:
+#                 training_type = "Optional"
+
+#             conn.execute(
+#                 """
+#                 INSERT INTO training_recommendations
+#                 (officer_id, title, start_date, price, product_type, duration, course_url, provider, training_type, description, learning_outcomes, who_should_attend, competency_gap, updated_at)
+#                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+#                 """,
+#                 (
+#                     officer_id,
+#                     title,
+#                     item.get("start_date", ""),
+#                     item.get("price", ""),
+#                     item.get("product_type", ""),
+#                     item.get("duration", ""),
+#                     item.get("course_url", ""),
+#                     item.get("provider", ""),
+#                     training_type,
+#                     item.get("description", ""),
+#                     item.get("learning_outcomes", ""),
+#                     item.get("who_should_attend", ""),
+#                     item.get("competency_gap", ""),
+#                 )
+#             )
+#             inserted += 1
+
+#     return inserted
 

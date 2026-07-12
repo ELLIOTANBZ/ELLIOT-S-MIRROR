@@ -20,7 +20,28 @@
     </div>
 
     <nav>
-      {% if logged_in_user.role != "Admin" or viewed_user.id != logged_in_user.id %}
+      {% if logged_in_user.role == "Admin" and viewed_user.id != logged_in_user.id %}
+      <section class="viewing-panel">
+        <span>Viewing As</span>
+        <form method="post" action="{{ url_for('view_as') }}">
+          <select name="officer_id" onchange="this.form.submit()">
+            <option value="{{ logged_in_user.id }}">
+              {{ logged_in_user.name }} (you)
+            </option>
+            {% for user in viewing_options if user.id != logged_in_user.id %}
+            <option value="{{ user.id }}" {% if viewed_user.id==user.id %}selected{% endif %}>
+              {{ user.name }} · {{ user.role }}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+        <form method="post" action="{{ url_for('stop_viewing') }}">
+          <button type="submit">Return to Admin</button>
+        </form>
+      </section>
+      {% endif %}
+
+      {% if nav_user.role != "Admin" %}
       <a class="{{ 'active' if request.endpoint == 'dashboard' else '' }}" href="{{ url_for('dashboard') }}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></span>
         <span>Dashboard</span>
@@ -43,7 +64,7 @@
       </a>
       {% endif %}
 
-      {% if logged_in_user.role in ["TL", "CSM", "AH"] and viewed_user.id == logged_in_user.id %}
+      {% if nav_user.role in ["TL", "CSM", "AH"] %}
       <a class="{{ 'active' if request.endpoint == 'team' else '' }}" href="{{ url_for('team') }}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
         <span>Team Overview</span>
@@ -67,7 +88,7 @@
         </form>
         {% if viewed_user.id != logged_in_user.id %}
         <form method="post" action="{{ url_for('stop_viewing') }}">
-          <button type="submit">Return to {{ "Admin" if logged_in_user.role == "Admin" else "my account" }}</button>
+          <button type="submit">Return to Admin</button>
         </form>
         {% endif %}
       </section>

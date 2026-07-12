@@ -43,14 +43,9 @@
     {% set met = item.met %}
     <div class="target-row">
       <div class="row-between">
-        <span>{{ "Years in position" if item.metric == "experience" else item.display_name }}</span>
+        <span>{{ item.display_name }}</span>
         <strong>
-          {% if item.metric == "experience" %}
-          {{ readiness.profile.years_in_role }} years worked
-          {% else %}
-          {{ item.value }} / {{ item.minimum_value }}
-          {{ "%" if item.unit == "percent" else " points" }}
-          {% endif %}
+          {{ item.value }}% / {{ item.minimum_value }}%
         </strong>
       </div>
       <div class="bar {{ 'met' if met else 'unmet' }}">
@@ -96,10 +91,16 @@
     <input type="radio" name="competency-tab" id="tab-core" checked>
     <input type="radio" name="competency-tab" id="tab-functional">
     <input type="radio" name="competency-tab" id="tab-correspondence">
+    {% if competency_groups.leadership %}
+    <input type="radio" name="competency-tab" id="tab-leadership">
+    {% endif %}
     <div class="tab-labels">
       <label for="tab-core">Core</label>
       <label for="tab-functional">Functional</label>
       <label for="tab-correspondence">Correspondence</label>
+      {% if competency_groups.leadership %}
+      <label for="tab-leadership">Leadership</label>
+      {% endif %}
     </div>
     {% for group_name, rows in competency_groups.items() if group_name != "evidence_summary" %}
     <div class="competency-grid tab-content tab-{{ group_name }}">

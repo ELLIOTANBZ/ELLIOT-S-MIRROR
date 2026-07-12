@@ -24,9 +24,8 @@ def admin_config_rows() -> list[dict[str, Any]]:
         officers = conn.execute(
             """
             SELECT users.id, users.name, users.role,
-                   profile.current_role, profile.target_role, profile.role_start_date,
-                   profile.expected_tenure_years, profile.responsibilities_json,
-                   profile.target_responsibilities_json,
+                   profile.current_role, profile.target_role,
+                   profile.responsibilities_json, profile.target_responsibilities_json,
                    org.manager_id, org.team_name, org.trained_schemes
             FROM users
             LEFT JOIN career_profiles profile ON profile.officer_id = users.id
@@ -58,7 +57,13 @@ def admin_config_rows() -> list[dict[str, Any]]:
         source_weights = conn.execute(
             """
             SELECT * FROM competency_source_weights
-            ORDER BY competency_name
+            ORDER BY CASE role
+              WHEN 'CSE' THEN 1
+              WHEN 'TL' THEN 2
+              WHEN 'CSM' THEN 3
+              WHEN 'AH' THEN 4
+              ELSE 5 END,
+              competency_name
             """
         ).fetchall()
 
@@ -75,8 +80,6 @@ def admin_config_rows() -> list[dict[str, Any]]:
                 "Trained Schemes": officer["trained_schemes"] or "",
                 "Current Role": officer["current_role"] or officer["role"],
                 "Target Role": officer["target_role"] or "",
-                "Start Date In Position": officer["role_start_date"] or "",
-                "Expected Tenure Years": officer["expected_tenure_years"] or "",
                 "Key Responsibilities": "; ".join(current_responsibilities),
                 "Target Responsibilities": "; ".join(target_responsibilities),
             }
@@ -89,9 +92,6 @@ def admin_config_rows() -> list[dict[str, Any]]:
                 "Core Weight": setting["core_weight"],
                 "Functional Weight": setting["functional_weight"],
                 "Correspondence Weight": setting["correspondence_weight"],
-                "Performance Banding Weight": setting["performance_weight"],
-                "Projects Weight": setting["development_weight"],
-                "Experience Weight": setting["tenure_weight"],
             }
         )
 
@@ -110,6 +110,7 @@ def admin_config_rows() -> list[dict[str, Any]]:
     for weight in source_weights:
         rows.append(
             {
+                "Source Role": weight["role"],
                 "Source Competency": weight["competency_name"],
                 "Source Audit Weight": weight["audit_weight"],
                 "Source Scorecard Weight": weight["scorecard_weight"],

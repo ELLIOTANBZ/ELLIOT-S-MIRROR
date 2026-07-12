@@ -118,10 +118,8 @@ CREATE TABLE IF NOT EXISTS career_profiles (
   officer_id TEXT PRIMARY KEY,
   current_role TEXT NOT NULL,
   target_role TEXT NOT NULL,
-  role_start_date TEXT,
   responsibilities_json TEXT NOT NULL DEFAULT '[]',
   target_responsibilities_json TEXT NOT NULL DEFAULT '[]',
-  expected_tenure_years REAL NOT NULL DEFAULT 2,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(officer_id) REFERENCES users(id)
 );
@@ -131,10 +129,6 @@ CREATE TABLE IF NOT EXISTS readiness_settings (
   core_weight REAL NOT NULL DEFAULT 0.25,
   functional_weight REAL NOT NULL DEFAULT 0.15,
   correspondence_weight REAL NOT NULL DEFAULT 0.15,
-  performance_weight REAL NOT NULL DEFAULT 0.15,
-  tenure_weight REAL NOT NULL DEFAULT 0.10,
-  development_weight REAL NOT NULL DEFAULT 0.20,
-  application_weight REAL NOT NULL DEFAULT 0.00,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -149,12 +143,14 @@ CREATE TABLE IF NOT EXISTS readiness_thresholds (
 );
 
 CREATE TABLE IF NOT EXISTS competency_source_weights (
-  competency_name TEXT PRIMARY KEY,
+  role TEXT NOT NULL DEFAULT 'CSE',
+  competency_name TEXT NOT NULL,
   audit_weight REAL NOT NULL DEFAULT 0.30,
   scorecard_weight REAL NOT NULL DEFAULT 0.30,
   interaction_weight REAL NOT NULL DEFAULT 0.30,
   project_weight REAL NOT NULL DEFAULT 0.10,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(role, competency_name)
 );
 
 CREATE TABLE IF NOT EXISTS training_records (
@@ -190,18 +186,6 @@ CREATE TABLE IF NOT EXISTS training_recommendations (
   who_should_attend TEXT NOT NULL DEFAULT '',
   competency_gap TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY(officer_id) REFERENCES users(id)
-);
-
-CREATE TABLE IF NOT EXISTS performance_records (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  officer_id TEXT NOT NULL,
-  period TEXT NOT NULL,
-  band TEXT NOT NULL,
-  score REAL NOT NULL,
-  notes TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(officer_id, period),
   FOREIGN KEY(officer_id) REFERENCES users(id)
 );
 

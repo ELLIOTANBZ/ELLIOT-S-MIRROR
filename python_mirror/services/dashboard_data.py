@@ -236,9 +236,6 @@ def dashboard_portal_data(officer_id: str, months: int = 3) -> dict[str, Any]:
             core=core_score,
             functional=functional_score,
             correspondence=correspondence_score,
-            performance=readiness["scores"]["performance"],
-            experience=readiness["component_scores"]["Experience"],
-            projects=readiness["component_scores"]["Projects"],
         )
 
         label_day = (5, 15, 25)[third]
@@ -318,9 +315,9 @@ def dashboard_portal_data(officer_id: str, months: int = 3) -> dict[str, Any]:
     if delta is None:
         encouragement = "Add more data to see how your progress changes over time."
     elif delta > 1:
-        encouragement = f"Great progress! Your overall readiness score has improved by {delta} points since {sampled_timeline[0]['date']}."
+        encouragement = f"Great progress! Your overall readiness has improved by {delta}% since {sampled_timeline[0]['date']}."
     elif delta < -1:
-        encouragement = f"Your score is {abs(delta)} points lower than {sampled_timeline[0]['date']}; the recommended actions can help you recover."
+        encouragement = f"Your readiness is {abs(delta)}% lower than {sampled_timeline[0]['date']}; the recommended actions can help you recover."
     else:
         encouragement = f"Your progress has remained steady since {sampled_timeline[0]['date']}."
 

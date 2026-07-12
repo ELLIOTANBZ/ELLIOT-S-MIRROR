@@ -46,8 +46,6 @@ def init_db(path: Path | None = None) -> None:
       migrate_cso_role_to_cse(conn)
       migrate_supervisor_to_csm_ah_roles(conn)
       remove_obsolete_readiness_columns(conn)
-      ensure_column(conn, "readiness_settings", "development_weight", "REAL NOT NULL DEFAULT 0.10")
-      ensure_column(conn, "readiness_settings", "application_weight", "REAL NOT NULL DEFAULT 0.10")
       ensure_column(conn, "training_records", "training_type", "TEXT NOT NULL DEFAULT 'Optional'")
       ensure_column(conn, "training_records", "description", "TEXT NOT NULL DEFAULT ''")
       ensure_column(conn, "training_records", "assigned_by", "TEXT NOT NULL DEFAULT 'CPF Board'")
@@ -56,6 +54,7 @@ def init_db(path: Path | None = None) -> None:
       ensure_column(conn, "ess_records", "is_valid", "INTEGER NOT NULL DEFAULT 1")
       ensure_column(conn, "project_records", "project_leads", "TEXT NOT NULL DEFAULT ''")
       ensure_column(conn, "competency_source_weights", "scorecard_weight", "REAL NOT NULL DEFAULT 0.30")
+      migrate_competency_source_weights_by_role(conn)
 
 
 ## One-time migration for databases created before the CSO role was renamed CSE.
@@ -125,13 +124,9 @@ def migrate_cso_role_to_cse(conn: sqlite3.Connection) -> None:
             WHERE role = 'Supervisor';
 
             INSERT OR IGNORE INTO readiness_settings
-              (role, core_weight, functional_weight, correspondence_weight,
-               performance_weight, tenure_weight, development_weight,
-               application_weight, updated_at)
+              (role, core_weight, functional_weight, correspondence_weight, updated_at)
             SELECT
-              'AH', core_weight, functional_weight, correspondence_weight,
-              performance_weight, tenure_weight, development_weight,
-              application_weight, updated_at
+              'AH', core_weight, functional_weight, correspondence_weight, updated_at
             FROM readiness_settings
             WHERE role = 'CSM';
 
@@ -212,13 +207,9 @@ def migrate_supervisor_to_csm_ah_roles(conn: sqlite3.Connection) -> None:
             WHERE role = 'Supervisor';
 
             INSERT OR IGNORE INTO readiness_settings
-              (role, core_weight, functional_weight, correspondence_weight,
-               performance_weight, tenure_weight, development_weight,
-               application_weight, updated_at)
+              (role, core_weight, functional_weight, correspondence_weight, updated_at)
             SELECT
-              'AH', core_weight, functional_weight, correspondence_weight,
-              performance_weight, tenure_weight, development_weight,
-              application_weight, updated_at
+              'AH', core_weight, functional_weight, correspondence_weight, updated_at
             FROM readiness_settings
             WHERE role = 'CSM';
 
@@ -244,7 +235,7 @@ def migrate_supervisor_to_csm_ah_roles(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
-## Removes old columns whose values now come from other tables or calculations.
+## Removes old columns/tables whose values are no longer part of readiness.
 def remove_obsolete_readiness_columns(conn: sqlite3.Connection) -> None:
     career_columns = {
         row["name"]
@@ -255,12 +246,106 @@ def remove_obsolete_readiness_columns(conn: sqlite3.Connection) -> None:
         for row in conn.execute("PRAGMA table_info(readiness_settings)").fetchall()
     }
     old_career_columns = {"team_name", "readiness_stage"}
+    removed_career_columns = {"expected_tenure_years", "role_start_date"}
     old_settings_columns = {
         "meeting_expectations_threshold",
         "stretch_ready_threshold",
         "advancement_ready_threshold",
     }
-    if not (career_columns & old_career_columns or settings_columns & old_settings_columns):
+    removed_settings_columns = {
+        "performance_weight",
+        "tenure_weight",
+        "development_weight",
+        "application_weight",
+    }
+    has_performance_table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'performance_records'"
+    ).fetchone()
+    needs_migration = (
+        career_columns & old_career_columns
+        or career_columns & removed_career_columns
+        or settings_columns & old_settings_columns
+        or settings_columns & removed_settings_columns
+        or has_performance_table
+    )
+    if not needs_migration:
+        return
+
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        career_selects = {
+            "officer_id": "officer_id",
+            "current_role": "current_role",
+            "target_role": "target_role",
+            "responsibilities_json": "responsibilities_json",
+            "target_responsibilities_json": "target_responsibilities_json",
+            "updated_at": "updated_at",
+        }
+        settings_selects = {
+            "role": "role",
+            "core_weight": "core_weight",
+            "functional_weight": "functional_weight",
+            "correspondence_weight": "correspondence_weight",
+            "updated_at": "updated_at",
+        }
+        conn.executescript(
+            f"""
+            BEGIN;
+
+            CREATE TABLE career_profiles_new (
+              officer_id TEXT PRIMARY KEY,
+              current_role TEXT NOT NULL,
+              target_role TEXT NOT NULL,
+              responsibilities_json TEXT NOT NULL DEFAULT '[]',
+              target_responsibilities_json TEXT NOT NULL DEFAULT '[]',
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY(officer_id) REFERENCES users(id)
+            );
+
+            INSERT INTO career_profiles_new
+              ({", ".join(career_selects)})
+            SELECT
+              {", ".join(career_selects.values())}
+            FROM career_profiles;
+
+            DROP TABLE career_profiles;
+            ALTER TABLE career_profiles_new RENAME TO career_profiles;
+
+            CREATE TABLE readiness_settings_new (
+              role TEXT PRIMARY KEY,
+              core_weight REAL NOT NULL DEFAULT 0.34,
+              functional_weight REAL NOT NULL DEFAULT 0.33,
+              correspondence_weight REAL NOT NULL DEFAULT 0.33,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            INSERT INTO readiness_settings_new
+              ({", ".join(settings_selects)})
+            SELECT
+              {", ".join(settings_selects.values())}
+            FROM readiness_settings;
+
+            DROP TABLE readiness_settings;
+            ALTER TABLE readiness_settings_new RENAME TO readiness_settings;
+
+            DROP TABLE IF EXISTS performance_records;
+
+            COMMIT;
+            """
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
+def migrate_competency_source_weights_by_role(conn: sqlite3.Connection) -> None:
+    columns = conn.execute("PRAGMA table_info(competency_source_weights)").fetchall()
+    column_names = {column["name"] for column in columns}
+    primary_key_columns = [column["name"] for column in columns if column["pk"]]
+    if "role" in column_names and primary_key_columns == ["role", "competency_name"]:
         return
 
     conn.commit()
@@ -270,55 +355,36 @@ def remove_obsolete_readiness_columns(conn: sqlite3.Connection) -> None:
             """
             BEGIN;
 
-            CREATE TABLE career_profiles_new (
-              officer_id TEXT PRIMARY KEY,
-              current_role TEXT NOT NULL,
-              target_role TEXT NOT NULL,
-              role_start_date TEXT,
-              responsibilities_json TEXT NOT NULL DEFAULT '[]',
-              target_responsibilities_json TEXT NOT NULL DEFAULT '[]',
-              expected_tenure_years REAL NOT NULL DEFAULT 2,
+            CREATE TABLE competency_source_weights_new (
+              role TEXT NOT NULL DEFAULT 'CSE',
+              competency_name TEXT NOT NULL,
+              audit_weight REAL NOT NULL DEFAULT 0.30,
+              scorecard_weight REAL NOT NULL DEFAULT 0.30,
+              interaction_weight REAL NOT NULL DEFAULT 0.30,
+              project_weight REAL NOT NULL DEFAULT 0.10,
               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-              FOREIGN KEY(officer_id) REFERENCES users(id)
+              PRIMARY KEY(role, competency_name)
             );
 
-            INSERT INTO career_profiles_new
-              (officer_id, current_role, target_role, role_start_date,
-               responsibilities_json, target_responsibilities_json,
-               expected_tenure_years, updated_at)
-            SELECT
-              officer_id, current_role, target_role, role_start_date,
-              responsibilities_json, target_responsibilities_json,
-              expected_tenure_years, updated_at
-            FROM career_profiles;
-
-            DROP TABLE career_profiles;
-            ALTER TABLE career_profiles_new RENAME TO career_profiles;
-
-            CREATE TABLE readiness_settings_new (
-              role TEXT PRIMARY KEY,
-              core_weight REAL NOT NULL DEFAULT 0.25,
-              functional_weight REAL NOT NULL DEFAULT 0.15,
-              correspondence_weight REAL NOT NULL DEFAULT 0.15,
-              performance_weight REAL NOT NULL DEFAULT 0.15,
-              tenure_weight REAL NOT NULL DEFAULT 0.10,
-              development_weight REAL NOT NULL DEFAULT 0.10,
-              application_weight REAL NOT NULL DEFAULT 0.10,
-              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            INSERT OR IGNORE INTO competency_source_weights_new
+              (role, competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight, updated_at)
+            SELECT role, competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight, updated_at
+            FROM (
+              SELECT 'CSE' AS role, competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight, updated_at
+              FROM competency_source_weights
+              UNION ALL
+              SELECT 'TL' AS role, competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight, updated_at
+              FROM competency_source_weights
+              UNION ALL
+              SELECT 'CSM' AS role, competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight, updated_at
+              FROM competency_source_weights
+              UNION ALL
+              SELECT 'AH' AS role, competency_name, 0.0 AS audit_weight, 0.0 AS scorecard_weight, 0.0 AS interaction_weight, 1.0 AS project_weight, updated_at
+              FROM competency_source_weights
             );
 
-            INSERT INTO readiness_settings_new
-              (role, core_weight, functional_weight, correspondence_weight,
-               performance_weight, tenure_weight, development_weight,
-               application_weight, updated_at)
-            SELECT
-              role, core_weight, functional_weight, correspondence_weight,
-              performance_weight, tenure_weight, development_weight,
-              application_weight, updated_at
-            FROM readiness_settings;
-
-            DROP TABLE readiness_settings;
-            ALTER TABLE readiness_settings_new RENAME TO readiness_settings;
+            DROP TABLE competency_source_weights;
+            ALTER TABLE competency_source_weights_new RENAME TO competency_source_weights;
 
             COMMIT;
             """

@@ -29,11 +29,13 @@ from services.competency_analysis import analyse_officer
 from services.competency_scoring import score_evidence_for_officer, score_projects_for_officer
 from services.daily_csv_builder import build_daily_csv
 from services.dashboard_data import dashboard_portal_data
-from services.local_importer import import_local_file
+from services.local_importer import import_local_file, import_org_chart_file
 from services.manual_paths import ensure_manual_dirs, incoming_dir, outgoing_changes_dir
 from services.admin_data import (
     add_officer,
     admin_portal_data,
+    org_chart_export_fieldnames,
+    org_chart_export_rows,
     remove_officer,
     save_competency_source_weight,
     save_organisation_assignment,
@@ -51,9 +53,13 @@ from services.project_data import (
     update_project_supervisor_evidence,
 )
 
-from services.readiness_data import competency_groups, readiness_for
+from services.readiness_data import (
+    competency_groups,
+    generate_and_cache_competency_development_summaries,
+    readiness_for,
+)
 from services.team_data import team_portal_data
-from services.training_data import generate_training_keywords, generate_training_recommendations, training_for
+from services.training_data import generate_training_keywords, training_for
 
 load_dotenv()               ## load .env
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -88,7 +94,9 @@ def render_page(template_name, **page_data):
     visible = visible_users(user, list_users()) if user else []
     viewed_user_id = session.get("view_as_id")
     viewed_user = find_user(viewed_user_id) if viewed_user_id else user
+    nav_user = viewed_user if user and user["role"] == "Admin" and viewed_user and viewed_user["id"] != user["id"] else user
     page_data["viewed_user"] = viewed_user
+    page_data["nav_user"] = nav_user
     page_data["viewing_options"] = visible
     return render_template(template_name, **page_data)
 
@@ -248,10 +256,12 @@ def score_existing_evidence():
 
     try:
         result = score_evidence_for_officer(officer["id"])
+        cached_count = generate_and_cache_competency_development_summaries(officer["id"])
         flash(
             "AI scoring updated "
             f"{result['interaction_scores']} interaction competency rows and "
-            f"{result['project_scores']} project competency rows."
+            f"{result['project_scores']} project competency rows. "
+            f"Cached {cached_count} development summaries."
         )
     except Exception as error:
         flash(f"Could not score existing evidence: {error}")
@@ -303,16 +313,16 @@ def refresh_course_catalogue():
 
 
 ## Generates course recommendations for the currently viewed officer.
-@app.route("/training/generate-recommendations", methods=["POST"])
-@login_required
-def generate_recommendations():
-    visible, officer = resolve_visible_officer()
-    try:
-        count = generate_training_recommendations(officer["id"])
-        flash(f"Generated {count} course recommendations.")
-    except Exception as error:
-        flash(f"Could not generate recommendations: {error}")
-    return redirect(url_for("training_page"))
+# @app.route("/training/generate-recommendations", methods=["POST"])
+# @login_required
+# def generate_recommendations():
+#     visible, officer = resolve_visible_officer()
+#     try:
+#         count = generate_training_recommendations(officer["id"])
+#         flash(f"Generated {count} course recommendations.")
+#     except Exception as error:
+#         flash(f"Could not generate recommendations: {error}")
+#     return redirect(url_for("training_page"))
 
 
 @app.route("/training/generate-keywords", methods=["POST"])
@@ -548,7 +558,7 @@ def admin_page():
             )
             flash("Readiness threshold saved.", "success")
         elif action == "save_competency_source_weight":
-            save_competency_source_weight(dict(request.form))
+            save_competency_source_weight(request.form)
             flash("Competency source weight saved.", "success")
         elif action == "save_organisation":
             save_organisation_assignment(
@@ -567,6 +577,7 @@ def admin_page():
                         "role": request.form.get(f"role_{officer_id}", ""),
                         "manager_id": request.form.get(f"manager_id_{officer_id}", ""),
                         "team_name": request.form.get(f"team_name_{officer_id}", ""),
+                        "trained_schemes": request.form.get(f"trained_schemes_{officer_id}", ""),
                     }
                 )
             save_organisation_assignments(assignments)
@@ -583,10 +594,41 @@ def admin_page():
         elif action == "remove_officer":
             remove_officer(request.form["officer_id"])
             flash("Officer removed.", "success")
+        elif action == "import_org_chart":
+            uploaded = request.files.get("org_chart_file")
+            if not uploaded or not uploaded.filename:
+                raise ValueError("Choose an org chart CSV or Excel file first.")
+            filename = secure_filename(uploaded.filename)
+            target = incoming_dir() / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            uploaded.save(target)
+            result = import_org_chart_file(target)
+            flash(result["message"], "success")
     except Exception as exc:
         flash(str(exc), "error")
     ## Redirect makes the browser send a fresh GET request for the selected admin tab.
     return redirect(url_for("admin_page", tab=request.form.get("tab", "settings")))
+
+
+@app.route("/admin/export-org-chart")
+@login_required
+def export_org_chart_csv():
+    user = current_user()
+    if user["role"] != "Admin":
+        abort(403)
+
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=org_chart_export_fieldnames())
+    writer.writeheader()
+    writer.writerows(org_chart_export_rows())
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=mirror_org_chart.csv"
+        },
+    )
 
 
 @app.route("/admin/build-daily-csv", methods=["POST"])
@@ -616,11 +658,13 @@ def build_daily_csv_page():
 @login_required
 def team():
     user = current_user()
-    if not can_view_team(user):                     ## If user is CSE, block.
+    viewed_user_id = session.get("view_as_id") if user["role"] == "Admin" else None
+    leader = find_user(viewed_user_id) if viewed_user_id else user
+    if not leader or not can_view_team(leader):                     ## If user is CSE, block.
         abort(403)
     users = list_users()                            ## Get full list of users from database.
-    visible = visible_users(user, users)            ## visible_users() returns only users this person can see.
-    return render_page("team.html", data=team_portal_data(visible, user))
+    visible = visible_users(leader, users)            ## visible_users() returns only users this person can see.
+    return render_page("team.html", data=team_portal_data(visible, leader))
 
 
 @app.route("/api/health")

@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Any          ## for dict[str, Any]
 from db import connect          ## with connect() as conn
-from services.calculations import average
 
 
 ## Gets one project row from SQLite. Used before saving evidence so the backend can check who owns/leads the project.
@@ -35,14 +34,37 @@ def save_project_record(values: dict[str, Any]) -> None:
         raise ValueError("Project needs requirements")
 
     with connect() as conn:
-        conn.execute(
+        existing = conn.execute(
             """
-            INSERT INTO project_records
-            (officer_id, project_name, project_leads, requirements_text, evidence_text, supervisor_comments, updated_at)
-            VALUES (?, ?, ?, ?, '', '', CURRENT_TIMESTAMP)
+            SELECT id
+            FROM project_records
+            WHERE officer_id = ? AND project_name = ?
+            ORDER BY id DESC
+            LIMIT 1
             """,
-            (officer_id, project_name, project_leads, requirements_text)
-        )
+            (officer_id, project_name),
+        ).fetchone()
+
+        if existing:
+            conn.execute(
+                """
+                UPDATE project_records
+                SET project_leads = ?,
+                    requirements_text = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (project_leads, requirements_text, existing["id"]),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO project_records
+                (officer_id, project_name, project_leads, requirements_text, evidence_text, supervisor_comments, updated_at)
+                VALUES (?, ?, ?, ?, '', '', CURRENT_TIMESTAMP)
+                """,
+                (officer_id, project_name, project_leads, requirements_text),
+            )
 
 
 ## let project lead store: evidence & comments
@@ -130,22 +152,4 @@ def all_projects() -> list[dict[str, Any]]:
 
     return project_rows_with_lead_names(rows)
 
-
-## used for readiness (not competencies)
-def project_score_for(officer_id: str) -> float:
-    with connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT score
-            FROM competency_evidence_scores
-            WHERE officer_id = ? AND source_type = 'project'
-            """,
-            (officer_id,),
-        ).fetchall()
-    scores = [row["score"] for row in rows if row["score"] is not None]
-
-    if not scores:
-        return 0.0
-
-    return round(average(scores) or 0, 1)
 

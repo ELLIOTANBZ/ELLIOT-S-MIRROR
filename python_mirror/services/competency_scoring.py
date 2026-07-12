@@ -127,9 +127,9 @@ SCORECARD_LEADERSHIP_COMPETENCY_FIELDS = {
 
 
 COMPETENCY_SOURCE_WEIGHT_DEFAULTS = {
-    "audit_weight": 0.30,
-    "scorecard_weight": 0.30,
-    "interaction_weight": 0.30,
+    "audit_weight": 0.34,
+    "scorecard_weight": 0.33,
+    "interaction_weight": 0.33,
     "project_weight": 0.10,
 }
 
@@ -162,6 +162,13 @@ ALL_SCORABLE_COMPETENCIES = [
     *CORRESPONDENCE_COMPETENCIES,
 ]
 
+AH_SCORABLE_COMPETENCIES = [
+    *CORE_COMPETENCIES,
+    *FUNCTIONAL_COMPETENCIES,
+    *CORRESPONDENCE_COMPETENCIES,
+    *LEADERSHIP_COMPETENCIES,
+]
+
 
 ## Fill these in later when the role-specific competency requirements are confirmed.
 ## These are used by AI scoring for interactions and projects.
@@ -180,7 +187,7 @@ ROLE_COMPETENCY_REQUIREMENTS = {
     },
     "AH": {
         competency_name: ""
-        for competency_name in ALL_SCORABLE_COMPETENCIES
+        for competency_name in AH_SCORABLE_COMPETENCIES
     },
 }
 
@@ -208,15 +215,6 @@ INTERACTIONS_AI_RUBRICS = {
 }
 
 
-PERFORMANCE_BAND_SCORES = {
-    "1": 100,
-    "2+": 85,
-    "2": 75,
-    "2-": 65,
-    "3": 50,
-}
-
-
 def officer_role_for_ai(officer_id: str) -> str:
     with connect() as conn:
         row = conn.execute(
@@ -226,6 +224,12 @@ def officer_role_for_ai(officer_id: str) -> str:
     return row["role"] if row else "CSE"
 
 
+def scorable_competencies_for_role(role: str) -> list[str]:
+    if role == "AH":
+        return AH_SCORABLE_COMPETENCIES
+    return ALL_SCORABLE_COMPETENCIES
+
+
 def role_competency_requirements(role: str) -> dict[str, dict[str, str]]:
     requirements = ROLE_COMPETENCY_REQUIREMENTS.get(role, {})
     return {
@@ -233,7 +237,7 @@ def role_competency_requirements(role: str) -> dict[str, dict[str, str]]:
             "general_description": COMPETENCY_DESCRIPTIONS.get(competency_name, ""),
             "role_requirement": requirements.get(competency_name, ""),
         }
-        for competency_name in ALL_SCORABLE_COMPETENCIES
+        for competency_name in scorable_competencies_for_role(role)
     }
 
 
@@ -388,6 +392,8 @@ Return JSON in this exact shape:
 ## store AI results of score_interactions_with_ai into SQLite, returns how many score rows were saved
 def score_interactions_for_officer(officer_id: str) -> int:
     role = officer_role_for_ai(officer_id)
+    if role == "AH":
+        return 0
     with connect() as conn:
         interactions = [
             dict(row)
@@ -589,13 +595,16 @@ def evidence_score_map_between(
 
 
 ## read the admin source weights (audit, interactions, projects)
-def source_weight_map() -> dict[str, dict[str, float]]:
+def source_weight_map(role: str) -> dict[str, dict[str, float]]:
     with connect() as conn:
         rows = conn.execute(
             """
             SELECT competency_name, audit_weight, scorecard_weight, interaction_weight, project_weight
             FROM competency_source_weights
+            WHERE role = ?
             """
+            ,
+            (role,),
         ).fetchall()
 
     return {
@@ -617,37 +626,63 @@ def blended_competency_score(
     interaction_scores: dict[str, float] | None = None,
     project_scores: dict[str, float] | None = None,
 ) -> dict[str, float]:
+    role = officer_role_for_ai(officer_id)
     if interaction_scores is None:
         interaction_scores = evidence_score_map(officer_id, "interaction")
     if project_scores is None:
         project_scores = evidence_score_map(officer_id, "project")
-    weights = source_weight_map()
+
+    if role == "AH":
+        return {
+            competency_name: round(project_scores.get(competency_name, 0), 1)
+            for competency_name in AH_SCORABLE_COMPETENCIES
+        }
+
+    weights = source_weight_map(role)
 
     final_scores = {}
 
     all_competencies = set(audit_scores) | set(scorecard_scores) | set(interaction_scores) | set(project_scores)
 
     for competency_name in all_competencies:           ## audit_scores: {"Working as a Team": 80, ...}
-        sources = []
+        source_weights = weights.get(competency_name, {})
+        base_sources = []
 
         audit_score = audit_scores.get(competency_name)
         if audit_score is not None:
-            sources.append(("audit", audit_score))
+            base_sources.append(("audit", audit_score))
 
         scorecard_score = scorecard_scores.get(competency_name)
         if scorecard_score is not None:
-            sources.append(("scorecard", scorecard_score))
+            base_sources.append(("scorecard", scorecard_score))
 
         if competency_name in interaction_scores:                       ## does interaction_scores have a key called (competency_name)?
-            sources.append(("interaction", interaction_scores[competency_name]))
+            base_sources.append(("interaction", interaction_scores[competency_name]))
 
+        if role == "CSE":
+            available_weight = sum(source_weights.get(source_name, 0) for source_name, _ in base_sources)
+            if not base_sources or available_weight == 0:
+                base_total = 0
+            else:
+                base_total = sum(
+                    score * (source_weights.get(source_name, 0) / available_weight)
+                    for source_name, score in base_sources
+                )
+
+            project_bonus = 0
+            if competency_name in project_scores:
+                project_bonus = project_scores[competency_name] * source_weights.get("project", 0)
+
+            final_scores[competency_name] = round(min(100, base_total + project_bonus), 1)
+            continue
+
+        ## so sources = [ ("audit", 80), ("scorecard", 60), ("interaction", 70), ("project", 90), ] for this 1 competency
+        sources = list(base_sources)
         if competency_name in project_scores:
             sources.append(("project", project_scores[competency_name]))
 
-        ## so sources = [ ("audit", 80), ("scorecard", ), ("interaction", 70), ("project", 90), ] for this 1 competency
-
         ## if no projects done, then dont lower the score because projects = 0, make projects weight = 0, else available_weight = 100
-        available_weight = sum(weights.get(competency_name, {}).get(source_name, 0) for source_name, _ in sources)
+        available_weight = sum(source_weights.get(source_name, 0) for source_name, _ in sources)
 
         if not sources or available_weight == 0:
             final_scores[competency_name] = 0
@@ -656,7 +691,7 @@ def blended_competency_score(
         total = 0
 
         for source_name, score in sources:
-            weight = weights.get(competency_name, {}).get(source_name, 0)
+            weight = source_weights.get(source_name, 0)
             total += score * (weight / available_weight)
 
         final_scores[competency_name] = round(total, 1)

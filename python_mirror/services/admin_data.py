@@ -6,7 +6,7 @@ from typing import Any
 
 from werkzeug.security import generate_password_hash
 
-from db import connect, new_id
+from db import connect, loads, new_id
 
 from services.competency_scoring import (
     CORE_COMPETENCIES,
@@ -76,7 +76,13 @@ def admin_portal_data() -> dict[str, Any]:
             for row in conn.execute(
                 """
                 SELECT * FROM competency_source_weights
-                ORDER BY competency_name
+                ORDER BY CASE role
+                  WHEN 'CSE' THEN 1
+                  WHEN 'TL' THEN 2
+                  WHEN 'CSM' THEN 3
+                  WHEN 'AH' THEN 4
+                  ELSE 5 END,
+                  competency_name
                 """
             ).fetchall()
         ]
@@ -85,6 +91,7 @@ def admin_portal_data() -> dict[str, Any]:
         user["id"]: manager_options_for(user, users)
         for user in users
     }
+
 
     ## for every user in users, it looks at the user's manager_id eg. George, so children_by_manager[George] is a list of those under George (appends the whole user instead of just id, unlike access_control.py)
     for user in users:
@@ -103,36 +110,99 @@ def admin_portal_data() -> dict[str, Any]:
     root_ids = {user["id"] for user in root_candidates}
     tree_user_ids = assigned_user_ids | root_ids                    ## | means set union: combine both sets without duplicates.
     unassigned_users = [ user for user in users if user["id"] not in tree_user_ids and user["role"] != "Admin" ]
-    source_weights_by_name = {
-        row["competency_name"]: row
+    source_weights_by_role_and_name = {
+        (row["role"], row["competency_name"]): row
         for row in source_weights
     }
+
+    def source_group(role: str, names: list[str]) -> list[dict[str, Any]]:
+        return [
+            source_weights_by_role_and_name[(role, name)]
+            for name in names
+            if (role, name) in source_weights_by_role_and_name
+        ]
 
     return {
         "settings": settings,
         "thresholds": thresholds,
-        "source_weight_groups": {
-            "Core": [
-                source_weights_by_name[name]
-                for name in CORE_COMPETENCIES
-                if name in source_weights_by_name
-            ],
-            "Functional": [
-                source_weights_by_name[name]
-                for name in FUNCTIONAL_COMPETENCIES
-                if name in source_weights_by_name
-            ],
-            "Correspondence": [
-                source_weights_by_name[name]
-                for name in CORRESPONDENCE_COMPETENCIES
-                if name in source_weights_by_name
-            ],
-        },
+        "source_weight_roles": [
+            {
+                "role": role,
+                "groups": {
+                    "Core": source_group(role, CORE_COMPETENCIES),
+                    "Functional": source_group(role, FUNCTIONAL_COMPETENCIES),
+                    "Correspondence": source_group(role, CORRESPONDENCE_COMPETENCIES),
+                },
+            }
+            for role in ["CSE", "TL", "CSM", "AH"]
+        ],
         "users": users,
         "manager_options_by_user": manager_options_by_user,
         "organisation_tree": roots,
         "unassigned_users": unassigned_users,
     }
+
+
+def org_chart_export_rows() -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT users.id, users.username, users.name, users.role,
+                   org.manager_id, org.team_name, org.trained_schemes,
+                   profile.current_role, profile.target_role,
+                   profile.responsibilities_json, profile.target_responsibilities_json
+            FROM users
+            LEFT JOIN organisation_relationships org
+              ON org.officer_id = users.id
+            LEFT JOIN career_profiles profile
+              ON profile.officer_id = users.id
+            WHERE users.role != 'Admin'
+            ORDER BY CASE users.role
+              WHEN 'AH' THEN 1
+              WHEN 'CSM' THEN 1
+              WHEN 'TL' THEN 2
+              WHEN 'CSE' THEN 3
+              ELSE 4 END,
+              users.name
+            """
+        ).fetchall()
+
+    export_rows = []
+    for row in rows:
+        responsibilities = loads(row["responsibilities_json"], [])
+        target_responsibilities = loads(row["target_responsibilities_json"], [])
+        export_rows.append(
+            {
+                "officer_id": row["id"],
+                "Username": row["username"],
+                "Officer Name": row["name"],
+                "Officer Role": row["role"],
+                "Manager ID": row["manager_id"] or "",
+                "Team Name": row["team_name"] or "",
+                "Trained Schemes": row["trained_schemes"] or "",
+                "Current Role": row["current_role"] or row["role"],
+                "Target Role": row["target_role"] or "",
+                "Key Responsibilities": "; ".join(responsibilities),
+                "Target Responsibilities": "; ".join(target_responsibilities),
+            }
+        )
+    return export_rows
+
+
+def org_chart_export_fieldnames() -> list[str]:
+    return [
+        "officer_id",
+        "Username",
+        "Officer Name",
+        "Officer Role",
+        "Manager ID",
+        "Team Name",
+        "Trained Schemes",
+        "Current Role",
+        "Target Role",
+        "Key Responsibilities",
+        "Target Responsibilities",
+    ]
 
 
 ## Weights & Thresholds: Save the Admin-edited readiness weights for one role.
@@ -143,9 +213,6 @@ def save_readiness_settings(values: dict[str, Any]) -> None:
         "core_weight",
         "functional_weight",
         "correspondence_weight",
-        "performance_weight",
-        "tenure_weight",
-        "development_weight",
     ]
     numbers = {}
     for field in numeric_fields:
@@ -153,7 +220,7 @@ def save_readiness_settings(values: dict[str, Any]) -> None:
     total_weight = sum(numbers.values())
 
     if abs(total_weight - 1) > 0.001:                   ## total_weight = 0.999999999 is accepted
-        raise ValueError("All six readiness weights must add up to 1.00.")
+        raise ValueError("The three readiness weights must add up to 1.00.")
     with connect() as conn:
         conn.execute(
             """
@@ -161,10 +228,6 @@ def save_readiness_settings(values: dict[str, Any]) -> None:
             SET core_weight = ?,
                 functional_weight = ?,
                 correspondence_weight = ?,
-                performance_weight = ?,
-                tenure_weight = ?,
-                development_weight = ?,
-                application_weight = 0,
                 updated_at = CURRENT_TIMESTAMP
             WHERE role = ?
             """,
@@ -172,9 +235,6 @@ def save_readiness_settings(values: dict[str, Any]) -> None:
                 numbers["core_weight"],
                 numbers["functional_weight"],
                 numbers["correspondence_weight"],
-                numbers["performance_weight"],
-                numbers["tenure_weight"],
-                numbers["development_weight"],
                 role,
             ),
         )
@@ -193,19 +253,35 @@ def save_readiness_threshold( stage: str, metric: str, minimum_value: float, ) -
         )       ## readiness_threshold: PRIMARY KEY(stage, metric)
 
 
-def save_competency_source_weight(values: dict[str, Any]) -> None:
-    competency_name = str(values["competency_name"])
-    audit_weight = float(values["audit_weight"])
-    scorecard_weight = float(values["scorecard_weight"])
-    interaction_weight = float(values["interaction_weight"])
-    project_weight = float(values["project_weight"])
-    total_weight = audit_weight + scorecard_weight + interaction_weight + project_weight
+def save_competency_source_weight(values: Any) -> None:
+    role = str(values["role"])
+    competency_names = values.getlist("competency_name")
+    audit_weights = values.getlist("audit_weight")
+    scorecard_weights = values.getlist("scorecard_weight")
+    interaction_weights = values.getlist("interaction_weight")
+    project_weights = values.getlist("project_weight")
 
-    if abs(total_weight - 1) > 0.001:
-        raise ValueError("Audit, scorecard, interaction, and project weights must add up to 1.00.")
+    rows = []
+    for index, competency_name in enumerate(competency_names):
+        audit_weight = float(audit_weights[index])
+        scorecard_weight = float(scorecard_weights[index])
+        interaction_weight = float(interaction_weights[index])
+        project_weight = float(project_weights[index])
+        if role == "AH":
+            audit_weight = 0.0
+            scorecard_weight = 0.0
+            interaction_weight = 0.0
+            project_weight = 1.0
+        else:
+            total_weight = audit_weight + scorecard_weight + interaction_weight
+            if abs(total_weight - 1) > 0.001:
+                raise ValueError(f"Audit, scorecard, and interaction weights for {competency_name} must add up to 1.00.")
+            if project_weight < 0:
+                raise ValueError(f"Project weight for {competency_name} cannot be negative.")
+        rows.append((audit_weight, scorecard_weight, interaction_weight, project_weight, role, competency_name))
 
     with connect() as conn:
-        conn.execute(
+        conn.executemany(
             """
             UPDATE competency_source_weights
             SET audit_weight = ?,
@@ -213,9 +289,9 @@ def save_competency_source_weight(values: dict[str, Any]) -> None:
                 interaction_weight = ?,
                 project_weight = ?,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE competency_name = ?
+            WHERE role = ? AND competency_name = ?
             """,
-            (audit_weight, scorecard_weight, interaction_weight, project_weight, competency_name),
+            rows,
         )
 
 
@@ -321,17 +397,19 @@ def save_organisation_assignments(assignments: list[dict[str, str]]) -> None:
             conn.execute(
                 """
                 INSERT INTO organisation_relationships
-                  (officer_id, manager_id, team_name, updated_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                  (officer_id, manager_id, team_name, trained_schemes, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(officer_id) DO UPDATE SET
                   manager_id = excluded.manager_id,
                   team_name = excluded.team_name,
+                  trained_schemes = excluded.trained_schemes,
                   updated_at = CURRENT_TIMESTAMP
                 """,
                 (
                     officer_id,
                     assignment.get("manager_id") or None,
                     assignment.get("team_name", "").strip(),
+                    assignment.get("trained_schemes", "").strip(),
                 ),
             )
         conn.commit()
@@ -374,19 +452,18 @@ def remove_officer(officer_id: str) -> None:
             raise ValueError("Admin accounts cannot be removed here.")
 
         ## to make sure no records in related tables
-        related_tables = [
+        for table in (
+            "competency_evidence_scores",
             "audit_records",
             "scorecard_records",
             "ess_records",
             "interactions",
             "training_records",
-        ]
-        has_data = any(
-            conn.execute( f"SELECT 1 FROM {table} WHERE officer_id = ? LIMIT 1", (officer_id,),).fetchone() for table in related_tables
-        )
-        if has_data:
-            raise ValueError( "This officer has saved records and cannot be removed. Move them instead.")
-
+            "training_recommendations",
+            "project_records",
+            "competency_overrides",
+        ):
+            conn.execute(f"DELETE FROM {table} WHERE officer_id = ?", (officer_id,))
         conn.execute("DELETE FROM organisation_relationships WHERE officer_id = ? OR manager_id = ?", (officer_id, officer_id),)
         conn.execute("DELETE FROM career_profiles WHERE officer_id = ?", (officer_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (officer_id,))

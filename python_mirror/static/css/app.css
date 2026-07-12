@@ -992,7 +992,8 @@ textarea {
 
 #tab-core:checked~.tab-labels label[for="tab-core"],
 #tab-functional:checked~.tab-labels label[for="tab-functional"],
-#tab-correspondence:checked~.tab-labels label[for="tab-correspondence"] {
+#tab-correspondence:checked~.tab-labels label[for="tab-correspondence"],
+#tab-leadership:checked~.tab-labels label[for="tab-leadership"] {
   background: #fff;
   color: #0f6e56;
   box-shadow: 0 1px 3px rgba(10, 74, 58, .12);
@@ -1021,7 +1022,8 @@ textarea {
 
 #tab-core:checked~.tab-core,
 #tab-functional:checked~.tab-functional,
-#tab-correspondence:checked~.tab-correspondence {
+#tab-correspondence:checked~.tab-correspondence,
+#tab-leadership:checked~.tab-leadership {
   display: grid;
 }
 
@@ -1363,11 +1365,15 @@ textarea {
 .viewing-card {
   display: grid;
   gap: 5px;
+  width: 100%;
   padding: 14px;
   border: 1px solid #dbe9e1;
   border-radius: 8px;
+  background: #fff;
   color: #1a2e26;
+  text-align: left;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .viewing-card:hover {
@@ -1421,6 +1427,18 @@ textarea {
 .role-title-box>span {
   color: #6b8c7d;
   font-size: 11px;
+}
+
+.dashboard-readiness-meter {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.dashboard-readiness-meter strong {
+  color: #0f3d35;
 }
 
 .target-role-title {
@@ -1775,6 +1793,39 @@ textarea {
 
 .org-chart-panel {
   overflow: hidden;
+}
+
+.org-chart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: end;
+  gap: 8px;
+}
+
+.inline-upload-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.inline-upload-form label {
+  min-width: 190px;
+}
+
+.inline-upload-form input[type="file"] {
+  max-width: 220px;
+  padding: 7px;
+  font-size: 11px;
+}
+
+.inline-upload-form button,
+.org-chart-actions .button-link,
+.org-chart-actions button {
+  min-height: 38px;
+  padding: 8px 11px;
+  font-size: 12px;
 }
 
 .org-chart {
@@ -3078,5 +3129,86 @@ button:hover,
     left: 14px;
     right: 14px;
     width: auto;
+  }
+}
+
+/* Dashboard career/readiness layout polish. */
+.dashboard-career-layout {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.dashboard-career-layout .career-pathway-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+.dashboard-career-layout .career-card {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.dashboard-career-layout .career-card .plain-list {
+  flex: 1;
+}
+
+.dashboard-career-layout .role-title-box {
+  min-height: 92px;
+  border-left: 0;
+}
+
+.dashboard-readiness-meter {
+  display: grid;
+  gap: 12px;
+  padding: 20px 22px;
+  border-left: 0;
+  border-color: #f2df9f;
+  background:
+    linear-gradient(90deg, rgba(255, 244, 192, .72), rgba(255, 255, 255, 0) 68%),
+    #fffbea;
+}
+
+.dashboard-readiness-meter .eyebrow {
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.dashboard-readiness-meter strong {
+  display: inline-block;
+  color: var(--mirror-action);
+  font-size: 38px;
+  line-height: 1;
+}
+
+.dashboard-readiness-meter span {
+  margin-left: 8px;
+  color: var(--mirror-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dashboard-readiness-meter .bar.large {
+  height: 16px;
+}
+
+.dashboard-career-layout .career-arrow {
+  align-self: center;
+  margin-top: 0;
+}
+
+.dashboard-career-layout .career-card + .career-card,
+.dashboard-career-layout .target-role-title {
+  border-left: 0;
+}
+
+@media (max-width: 900px) {
+  .dashboard-career-layout .career-pathway-card {
+    grid-template-columns: 1fr;
   }
 }

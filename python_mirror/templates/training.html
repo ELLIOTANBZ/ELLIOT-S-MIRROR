@@ -53,7 +53,7 @@
         <div class="training-meta">
           <span>{{ record.training_type or "Optional" }}</span>
           <span>Gap: {{ record.competency_gap or "Not specified" }}</span>
-          <span>Provider: {{ record.assigned_by or record.provider or "CPF Board" }}</span>
+          <span>Provider: {{ record.provider or "CPF Board" }}</span>
           <span>{{ record.completed_date or record.assigned_date or "Date not set" }}</span>
         </div>
       </div>

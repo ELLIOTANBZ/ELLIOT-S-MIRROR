@@ -1,38 +1,77 @@
 {
-  "ess": {
-    "officer_id": "FILL_IN_LOCALLY",
-    "upload_date": "FILL_IN_LOCALLY",
-    "rating": "FILL_IN_LOCALLY",
-    "feedback": "FILL_IN_LOCALLY"
+  "profile": {
+    "officer_id": "officer_id",
+    "officer_role": "Officer Role",
+    "manager_id": "Manager ID",
+    "team_name": "Team Name",
+    "trained_schemes": "Trained Schemes",
+    "current_role": "Current Role",
+    "target_role": "Target Role",
+    "responsibilities": "Key Responsibilities",
+    "target_responsibilities": "Target Responsibilities"
   },
   "audit": {
-    "officer_id": "FILL_IN_LOCALLY",
-    "upload_date": "FILL_IN_LOCALLY",
-    "total_score": "FILL_IN_LOCALLY",
-    "indicator_columns": [
-      "FILL_IN_LOCALLY"
-    ],
-    "comment_columns": [
-      "FILL_IN_LOCALLY"
-    ]
+    "officer_id": "officer_id",
+    "upload_date": "upload_date",
+    "total_score": "total_score"
+  },
+  "scorecard": {
+    "officer_id": "officer_id",
+    "upload_date": "upload_date"
+  },
+  "ess": {
+    "officer_id": "officer_id",
+    "upload_date": "upload_date",
+    "rating": "rating",
+    "feedback": "feedback",
+    "ess_valid": "ESS Valid"
   },
   "interactions": {
-    "officer_id": "FILL_IN_LOCALLY",
-    "upload_date": "FILL_IN_LOCALLY",
-    "case_id": "FILL_IN_LOCALLY",
-    "member_query": "FILL_IN_LOCALLY",
-    "officer_response": "FILL_IN_LOCALLY"
+    "officer_id": "officer_id",
+    "upload_date": "upload_date",
+    "case_id": "case_id",
+    "member_query": "member_query",
+    "officer_response": "officer_response"
   },
   "training": {
-    "officer_id": "FILL_IN_LOCALLY",
-    "title": "FILL_IN_LOCALLY",
-    "provider": "FILL_IN_LOCALLY",
-    "training_type": "FILL_IN_LOCALLY",
-    "description": "FILL_IN_LOCALLY",
-    "assigned_by": "FILL_IN_LOCALLY",
-    "status": "FILL_IN_LOCALLY",
-    "assigned_date": "FILL_IN_LOCALLY",
-    "completed_date": "FILL_IN_LOCALLY",
-    "notes": "FILL_IN_LOCALLY"
+    "officer_id": "officer_id",
+    "title": "Title",
+    "provider": "Provider",
+    "training_type": "Training Type",
+    "status": "Status",
+    "assigned_date": "Assigned Date",
+    "completed_date": "Completed Date",
+    "description": "Description",
+    "competency_gap": "Competency Gap"
+  },
+  "projects": {
+    "officer_id": "officer_id",
+    "project_name": "Project Name",
+    "project_leads": "Project Leads",
+    "requirements_text": "Requirements",
+    "evidence_text": "What Was Done",
+    "supervisor_comments": "Project Lead Comments"
+  },
+  "readiness_settings": {
+    "role": "Readiness Role",
+    "core_weight": "Core Weight",
+    "functional_weight": "Functional Weight",
+    "correspondence_weight": "Correspondence Weight"
+  },
+  "readiness_thresholds": {
+    "stage": "Threshold Stage",
+    "metric": "Threshold Metric",
+    "display_name": "Threshold Display Name",
+    "minimum_value": "Threshold Minimum Value",
+    "unit": "Threshold Unit",
+    "sequence": "Threshold Sequence"
+  },
+  "competency_source_weights": {
+    "role": "Source Role",
+    "competency_name": "Source Competency",
+    "audit_weight": "Source Audit Weight",
+    "scorecard_weight": "Source Scorecard Weight",
+    "interaction_weight": "Source Interaction Weight",
+    "project_weight": "Source Project Weight"
   }
 }

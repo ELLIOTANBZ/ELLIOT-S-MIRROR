@@ -38,10 +38,23 @@
           placeholder="Example: I coordinated user testing, drafted reply templates, analysed feedback themes, and followed up on implementation risks."></textarea>
       </label>
 
-      <label>Requirements
-        <textarea name="requirements_text" rows="7" required
-          placeholder="Describe what the project was trying to achieve, what targets or deliverables mattered, who benefited, what relationships or capabilities were built, and what timeline or completion status applied."></textarea>
-      </label>
+      <div class="project-question-grid">
+        <label>What was this project trying to achieve?
+          <textarea name="project_purpose" rows="3" required></textarea>
+        </label>
+        <label>What targets or deliverables mattered?
+          <textarea name="project_targets" rows="3" required></textarea>
+        </label>
+        <label>Who did you work with or build relationships with?
+          <textarea name="project_relationships" rows="3"></textarea>
+        </label>
+        <label>What capability or capacity did this build?
+          <textarea name="project_capability" rows="3"></textarea>
+        </label>
+        <label>What was the timeline or completion status?
+          <textarea name="project_timeline" rows="3" placeholder="Example: Completed in Jun 2026, or ongoing."></textarea>
+        </label>
+      </div>
 
       <button type="submit">Add Project</button>
     </form>

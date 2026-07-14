@@ -55,16 +55,19 @@
 
   <section class="panel appraisal-sections">
     <label>2. My work concerns/needs
-      <textarea name="work_concerns" rows="4">{{ appraisal.work_concerns }}</textarea>
+      <small class="muted">Include blockers, resource/process constraints, support needed, and what would help the next review period.</small>
+      <textarea name="work_concerns" rows="6">{{ appraisal.work_concerns }}</textarea>
     </label>
     <label>3. My strengths & areas for further development
-      <textarea name="strengths_development" rows="4">{{ appraisal.strengths_development }}</textarea>
+      <small class="muted">Include evidence-backed strengths, examples from projects/interactions, and specific development areas.</small>
+      <textarea name="strengths_development" rows="6">{{ appraisal.strengths_development }}</textarea>
     </label>
     <label>4. My career goals/aspirations
       <textarea name="career_goals" rows="4">{{ appraisal.career_goals }}</textarea>
     </label>
     <label>5. What can I do to further improve/develop myself
-      <textarea name="improve_develop" rows="4">{{ appraisal.improve_develop }}</textarea>
+      <small class="muted">Include practical next steps, training/stretch exposure, and habits to build.</small>
+      <textarea name="improve_develop" rows="6">{{ appraisal.improve_develop }}</textarea>
     </label>
     <label>6. How my supervisor can help me do my job better
       <textarea name="supervisor_help" rows="4">{{ appraisal.supervisor_help }}</textarea>

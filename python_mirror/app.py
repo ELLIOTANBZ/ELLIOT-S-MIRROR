@@ -60,9 +60,9 @@ from services.project_data import (
 )
 
 from services.readiness_data import (
+    cached_competency_development_summaries,
     competency_groups,
     ensure_competency_development_summaries,
-    generate_and_cache_competency_development_summaries,
     readiness_for,
 )
 from services.team_data import team_portal_data
@@ -244,13 +244,34 @@ def generate_dashboard_ai_summary():
 @login_required
 def readiness_page():
     visible, officer = resolve_visible_officer()
-    ensure_competency_development_summaries(officer["id"])
     return render_page(
         "readiness.html",
         users=visible,
         officer=officer,
         readiness=readiness_for(officer["id"]),
         competency_groups=competency_groups(officer["id"]),
+    )
+
+
+@app.route("/competency-development-summary", methods=["POST"])
+@login_required
+def competency_development_summary():
+    user = current_user()
+    officer_id = request.json.get("officer_id", "") if request.is_json else request.form.get("officer_id", "")
+    competency_name = request.json.get("competency_name", "") if request.is_json else request.form.get("competency_name", "")
+    officer = find_user(officer_id)
+    if not officer or not can_view_user(user, officer):
+        abort(403)
+
+    ensure_competency_development_summaries(officer_id)
+    summaries = cached_competency_development_summaries(officer_id)
+    return jsonify(
+        {
+            "summary": summaries.get(
+                competency_name,
+                "No AI development summary is available for this competency yet.",
+            )
+        }
     )
 
 
@@ -334,12 +355,10 @@ def score_existing_evidence():
 
     try:
         result = score_evidence_for_officer(officer["id"])
-        cached_count = generate_and_cache_competency_development_summaries(officer["id"])
         flash(
             "AI scoring updated "
             f"{result['interaction_scores']} interaction competency rows and "
-            f"{result['project_scores']} project competency rows. "
-            f"Cached {cached_count} development summaries."
+            f"{result['project_scores']} project competency rows."
         )
     except Exception as error:
         flash(f"Could not score existing evidence: {error}")

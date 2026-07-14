@@ -38,7 +38,11 @@
         <div class="row-between">
           <h2>{{ data.career.profile.current_role }}</h2>
           {% set light_class = 'red' if data.career.stage == 'Not Ready' else 'amber' if data.career.stage == 'Meeting Expectations' else 'green' %}
-          <span class="traffic-light {{ light_class }}" title="{{ data.career.stage }}" aria-label="{{ data.career.stage }}"></span>
+          <span class="traffic-light-stack" title="{{ data.career.stage }}" aria-label="{{ data.career.stage }}">
+            <span class="traffic-light red {{ 'active' if light_class == 'red' else '' }}"></span>
+            <span class="traffic-light amber {{ 'active' if light_class == 'amber' else '' }}"></span>
+            <span class="traffic-light green {{ 'active' if light_class == 'green' else '' }}"></span>
+          </span>
         </div>
         <span>Your current position</span>
         <span>Team: {{ data.career.profile.team_name }}</span>

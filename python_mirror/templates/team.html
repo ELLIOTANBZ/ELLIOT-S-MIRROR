@@ -66,7 +66,7 @@
             <summary>{{ group_name|title }}</summary>
             <div class="competency-grid">
               {% for item in items %}
-              <details class="competency-box">
+              <details class="competency-box" data-officer-id="{{ row.officer.id }}" data-competency-name="{{ item.name }}">
                 <summary>
                   <span>{{ item.name }}</span>
                   <strong>{{ item.score }}</strong>
@@ -75,7 +75,7 @@
                 <div class="competency-detail">
                   <p>{{ item.description }}</p>
                   <h4>Development summary</h4>
-                  <p>{{ item.development }}</p>
+                  <p data-development-summary>{{ item.development }}</p>
                 </div>
               </details>
               {% endfor %}
@@ -92,4 +92,29 @@
     </tbody>
   </table>
 </section>
+<script>
+  document.querySelectorAll(".competency-box[data-officer-id]").forEach((box) => {
+    box.addEventListener("toggle", async () => {
+      if (!box.open || box.dataset.loadedDevelopment === "1") return;
+      const target = box.querySelector("[data-development-summary]");
+      if (!target) return;
+      target.textContent = "Generating development summary...";
+      try {
+        const response = await fetch("{{ url_for('competency_development_summary') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            officer_id: box.dataset.officerId,
+            competency_name: box.dataset.competencyName,
+          }),
+        });
+        const result = await response.json();
+        target.textContent = result.summary || "No AI development summary is available for this competency yet.";
+        box.dataset.loadedDevelopment = "1";
+      } catch (error) {
+        target.textContent = "Could not load AI development summary.";
+      }
+    });
+  });
+</script>
 {% endblock %}

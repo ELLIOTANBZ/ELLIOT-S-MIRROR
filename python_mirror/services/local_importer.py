@@ -1078,9 +1078,6 @@ def import_daily_admin_file(frame: pd.DataFrame) -> dict[str, Any]:
     total_imported = 0
     total_skipped = 0
     filled_frame = frame.fillna("")
-    lookup = user_lookup()
-    officer_col = configured_column(filled_frame, "profile", "officer_id", OFFICER_COLUMNS)
-    affected_officer_ids = collect_officer_ids(filled_frame, officer_col, lookup) if officer_col else set()
 
     if has_profile_columns(frame):
         result = import_profiles(frame)
@@ -1154,24 +1151,6 @@ def import_daily_admin_file(frame: pd.DataFrame) -> dict[str, Any]:
         parts.append(f"{result['imported']} competency source weight")
         total_imported += result["imported"]
         total_skipped += result["skipped"]
-
-    if affected_officer_ids and ai_is_configured():
-        from services.readiness_data import generate_and_cache_competency_development_summaries
-
-        cached_officers = 0
-        failed_officers = 0
-        for officer_id in affected_officer_ids:
-            try:
-                if generate_and_cache_competency_development_summaries(officer_id):
-                    cached_officers += 1
-            except Exception:
-                failed_officers += 1
-        if cached_officers:
-            parts.append(f"AI-cached readiness summaries for {cached_officers} officer(s)")
-        if failed_officers:
-            parts.append(f"readiness AI summaries failed for {failed_officers} officer(s)")
-    elif affected_officer_ids:
-        parts.append("readiness AI summaries skipped because AI is not configured")
 
     if not parts:
         raise ValueError(

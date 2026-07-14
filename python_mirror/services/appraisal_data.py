@@ -111,10 +111,19 @@ def local_appraisal(context: dict[str, Any]) -> dict[str, Any]:
                 "achievements_progress": "Add project evidence so MIRROR can draft this section more strongly.",
             }
         )
-    appraisal["work_concerns"] = "Review recurring issues from ESS, interactions, and project evidence for this period."
-    appraisal["strengths_development"] = "Use generated competency evidence to verify strengths and development areas."
+    appraisal["work_concerns"] = (
+        "Review recurring issues from ESS, interactions, and project evidence for this period. "
+        "Explain what made the work difficult, what support or information was needed, and what could reduce blockers next cycle."
+    )
+    appraisal["strengths_development"] = (
+        "Use project outcomes, competency evidence, and feedback to describe 2-3 strengths. "
+        "Then identify development areas with concrete examples of what should improve next."
+    )
     appraisal["career_goals"] = f"Progress towards {context.get('officer', {}).get('target_role') or 'the next suitable role'}."
-    appraisal["improve_develop"] = "Continue documenting project outcomes and seek feedback from project managers."
+    appraisal["improve_develop"] = (
+        "Continue documenting project outcomes, seek feedback from project managers, practise weak competency areas in live cases, "
+        "and identify training or stretch assignments that match the officer's competency gaps."
+    )
     appraisal["supervisor_help"] = "Provide timely feedback on project evidence and opportunities to demonstrate target-role competencies."
     appraisal["other_matters"] = "Generated draft. Officer should verify before submission."
     return appraisal
@@ -143,10 +152,10 @@ Return JSON in this exact shape:
       "achievements_progress": "major achievements, new initiatives, and extent targets were met"
     }}
   ],
-  "work_concerns": "my work concerns/needs",
-  "strengths_development": "my strengths and areas for further development",
+  "work_concerns": "my work concerns/needs. Elaborate on blockers, resource/process constraints, support needed, and what would help the officer perform better.",
+  "strengths_development": "my strengths and areas for further development. Include evidence-backed strengths, examples from projects/interactions, and specific development areas.",
   "career_goals": "my career goals/aspirations",
-  "improve_develop": "what I can do to further improve/develop myself",
+  "improve_develop": "what I can do to further improve/develop myself. Give practical next steps, training/stretch exposure suggestions, and habits to build.",
   "supervisor_help": "how my supervisor can help me do my job better",
   "other_matters": "any other matters"
 }}

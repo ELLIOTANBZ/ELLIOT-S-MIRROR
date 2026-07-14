@@ -706,25 +706,42 @@ textarea {
   font-weight: 800;
 }
 
+.traffic-light-stack {
+  display: inline-grid;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 999px;
+  background: #1a2e26;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+}
+
 .traffic-light {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
   border-radius: 50%;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 2px rgba(15, 35, 28, .14);
+  opacity: .22;
+  background: #d7ded9;
+}
+
+.traffic-light.active {
+  opacity: 1;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .traffic-light.red {
   background: #c2412d;
+  color: #c2412d;
 }
 
 .traffic-light.amber {
   background: #d99b20;
+  color: #d99b20;
 }
 
 .traffic-light.green {
   background: #0f6e56;
+  color: #0f6e56;
 }
 
 .detail-list {
@@ -3268,6 +3285,11 @@ button:hover,
 .appraisal-sections {
   display: grid;
   gap: 16px;
+}
+
+.project-question-grid {
+  display: grid;
+  gap: 12px;
 }
 
 @media (max-width: 980px) {

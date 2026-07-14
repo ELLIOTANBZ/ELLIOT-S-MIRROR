@@ -708,41 +708,47 @@ textarea {
 
 .traffic-light-stack {
   display: inline-grid;
-  gap: 3px;
-  padding: 6px 5px;
-  border-radius: 12px;
+  gap: 4px;
+  padding: 7px 6px;
+  border-radius: 14px;
   background: #1a2e26;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .18),
+    0 5px 12px rgba(26, 46, 38, .18);
 }
 
 .traffic-light {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
   border-radius: 50%;
-  opacity: .18;
-  filter: grayscale(.35);
+  opacity: .48;
+  filter: grayscale(.35) brightness(.72);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .45);
 }
 
 .traffic-light.active {
   opacity: 1;
   filter: none;
-  box-shadow: 0 0 8px currentColor;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, .65),
+    0 0 0 2px rgba(255, 255, 255, .85),
+    0 0 14px 4px currentColor;
 }
 
 .traffic-light.red {
-  background: #c2412d;
-  color: #c2412d;
+  background: #ef2f24;
+  color: #ef2f24;
 }
 
 .traffic-light.amber {
-  background: #d99b20;
-  color: #d99b20;
+  background: #ffbf1f;
+  color: #ffbf1f;
 }
 
 .traffic-light.green {
-  background: #0f6e56;
-  color: #0f6e56;
+  background: #22c55e;
+  color: #22c55e;
 }
 
 .detail-list {

@@ -267,8 +267,10 @@ Data:
 
 
 def ai_cache_key(summary: dict[str, Any]) -> str:
-    summary_text = json.dumps(summary, ensure_ascii=True, sort_keys=True)
-    cache_material = f"{ai_provider()}:dashboard-summary-v2:{summary_text}"
+    cache_material = (
+        f"{ai_provider()}:dashboard-summary-daily-v1:"
+        f"{date.today().isoformat()}:{summary.get('officer_id', '')}"
+    )
     return "competency-analysis:" + hashlib.sha256(
         cache_material.encode("utf-8")
     ).hexdigest()

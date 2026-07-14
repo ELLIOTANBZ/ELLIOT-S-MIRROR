@@ -34,6 +34,7 @@ def team_portal_data( officers: list[dict[str, Any]], leader: dict[str, Any], ) 
                 "readiness_score": readiness["readiness_score"],
                 "stage": readiness["stage"],
                 "team": readiness["profile"]["team_name"],
+                "evidence_summary": groups.get("evidence_summary", ""),
                 "competency_groups": visible_groups,
             }
         )

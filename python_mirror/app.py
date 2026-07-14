@@ -25,6 +25,12 @@ from repositories import (
 from services.access_control import can_view_team, can_view_user, visible_users
 from services.access_control import SUPERVISOR_ROLES, TEAM_ROLES
 from services.ai_client import ai_is_configured
+from services.appraisal_data import (
+    APPRAISAL_CATEGORIES,
+    appraisal_text,
+    default_appraisal_dates,
+    generate_appraisal,
+)
 from services.competency_analysis import analyse_officer
 from services.competency_scoring import score_evidence_for_officer, score_projects_for_officer
 from services.daily_csv_builder import build_daily_csv
@@ -55,6 +61,7 @@ from services.project_data import (
 
 from services.readiness_data import (
     competency_groups,
+    ensure_competency_development_summaries,
     generate_and_cache_competency_development_summaries,
     readiness_for,
 )
@@ -237,12 +244,83 @@ def generate_dashboard_ai_summary():
 @login_required
 def readiness_page():
     visible, officer = resolve_visible_officer()
+    ensure_competency_development_summaries(officer["id"])
     return render_page(
         "readiness.html",
         users=visible,
         officer=officer,
         readiness=readiness_for(officer["id"]),
         competency_groups=competency_groups(officer["id"]),
+    )
+
+
+@app.route("/appraisal", methods=["GET", "POST"])
+@login_required
+def appraisal_page():
+    visible, officer = resolve_visible_officer()
+    default_start, default_end = default_appraisal_dates()
+    start_date = request.form.get("start_date", default_start)
+    end_date = request.form.get("end_date", default_end)
+    appraisal = None
+
+    if request.method == "POST":
+        try:
+            appraisal = generate_appraisal(officer["id"], start_date, end_date)
+            flash("Appraisal draft generated.", "success")
+        except Exception as error:
+            flash(f"Could not generate appraisal draft: {error}", "error")
+
+    return render_page(
+        "appraisal.html",
+        users=visible,
+        officer=officer,
+        start_date=start_date,
+        end_date=end_date,
+        appraisal=appraisal,
+        categories=APPRAISAL_CATEGORIES,
+    )
+
+
+@app.route("/appraisal/download", methods=["POST"])
+@login_required
+def download_appraisal():
+    visible, officer = resolve_visible_officer()
+    achievement_rows = []
+    categories = request.form.getlist("achievement_category")
+    target_sets = request.form.getlist("achievement_target_sets")
+    completion_dates = request.form.getlist("achievement_target_completion_date")
+    progress_rows = request.form.getlist("achievement_progress")
+    for index, category in enumerate(categories):
+        achievement_rows.append(
+            {
+                "category": category,
+                "target_sets": target_sets[index] if index < len(target_sets) else "",
+                "target_completion_date": completion_dates[index] if index < len(completion_dates) else "",
+                "achievements_progress": progress_rows[index] if index < len(progress_rows) else "",
+            }
+        )
+
+    values = {
+        "achievements": achievement_rows,
+        "work_concerns": request.form.get("work_concerns", ""),
+        "strengths_development": request.form.get("strengths_development", ""),
+        "career_goals": request.form.get("career_goals", ""),
+        "improve_develop": request.form.get("improve_develop", ""),
+        "supervisor_help": request.form.get("supervisor_help", ""),
+        "other_matters": request.form.get("other_matters", ""),
+    }
+    content = appraisal_text(
+        officer["name"],
+        request.form.get("start_date", ""),
+        request.form.get("end_date", ""),
+        values,
+    )
+    return Response(
+        content,
+        mimetype="text/plain",
+        headers={
+            "Content-Disposition": f"attachment; filename=mirror_appraisal_{officer['id']}.txt"
+        },
     )
 
 
@@ -357,7 +435,7 @@ def projects_page():
                 values["officer_id"] = officer["id"]    ## value not in the form
                 save_project_record(values)
 
-            ## project lead gives feedback
+            ## project manager gives feedback
             elif action == "save_supervisor_evidence":
 
                 ## check who owns/leads the project
@@ -418,10 +496,11 @@ def export_projects_csv():
     fieldnames = [
         "officer_id",
         "Project Name",
-        "Project Leads",
+        "Project Managers",
+        "What was your role?",
         "Requirements",
         "What Was Done",
-        "Project Lead Comments",
+        "Project Manager Comments",
     ]
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
@@ -430,10 +509,11 @@ def export_projects_csv():
             {
                 "officer_id": project["officer_id"],
                 "Project Name": project["project_name"],
-                "Project Leads": project["project_leads"],
+                "Project Managers": project["project_leads"],
+                "What was your role?": project["project_role"],
                 "Requirements": project["requirements_text"],
                 "What Was Done": project["evidence_text"],
-                "Project Lead Comments": project["supervisor_comments"],
+                "Project Manager Comments": project["supervisor_comments"],
             }
         )
 

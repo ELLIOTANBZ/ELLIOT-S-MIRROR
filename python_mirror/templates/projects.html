@@ -22,7 +22,7 @@
       </label>
 
       <details class="multi-select-panel">
-        <summary>Project Leads</summary>
+        <summary>Project Managers</summary>
         <div class="multi-select-options">
           {% for user in project_lead_options %}
           <label>
@@ -33,8 +33,14 @@
         </div>
       </details>
 
+      <label>What was your role?
+        <textarea name="project_role" rows="3" required
+          placeholder="Example: I coordinated user testing, drafted reply templates, analysed feedback themes, and followed up on implementation risks."></textarea>
+      </label>
+
       <label>Requirements
-        <textarea name="requirements_text" rows="5" required></textarea>
+        <textarea name="requirements_text" rows="7" required
+          placeholder="Describe what the project was trying to achieve, what targets or deliverables mattered, who benefited, what relationships or capabilities were built, and what timeline or completion status applied."></textarea>
       </label>
 
       <button type="submit">Add Project</button>
@@ -51,8 +57,11 @@
       <article class="record-card">
         <h3>{{ project.project_name }}</h3>
         <p class="muted">
-          {{ project.officer_name }} · Project Leads: {{ project.project_lead_names or "None" }}
+          {{ project.officer_name }} · Project Managers: {{ project.project_lead_names or "None" }}
         </p>
+
+        <h4>What was your role?</h4>
+        <p>{{ project.project_role or "No role added yet." }}</p>
 
         <h4>Requirements</h4>
         <p>{{ project.requirements_text }}</p>
@@ -60,8 +69,8 @@
         <h4>What Was Done</h4>
         <p>{{ project.evidence_text or "No evidence added yet." }}</p>
 
-        <h4>Project Lead Comments</h4>
-        <p>{{ project.supervisor_comments or "No project lead comments added yet." }}</p>
+        <h4>Project Manager Comments</h4>
+        <p>{{ project.supervisor_comments or "No project manager comments added yet." }}</p>
 
         {% set lead_ids = project.project_leads.split(";") %}
         {% if logged_in_user.id in lead_ids or logged_in_user.role == "Admin" %}
@@ -73,7 +82,7 @@
             <textarea name="evidence_text" rows="5">{{ project.evidence_text }}</textarea>
           </label>
 
-          <label>Project Lead Comments
+          <label>Project Manager Comments
             <textarea name="supervisor_comments" rows="4">{{ project.supervisor_comments }}</textarea>
           </label>
 

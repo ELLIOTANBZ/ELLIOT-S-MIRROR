@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS project_records (
   officer_id TEXT NOT NULL,
   project_name TEXT NOT NULL,
   project_leads TEXT NOT NULL DEFAULT '',
+  project_role TEXT NOT NULL DEFAULT '',
   requirements_text TEXT NOT NULL,
   evidence_text TEXT NOT NULL DEFAULT '',
   supervisor_comments TEXT NOT NULL DEFAULT '',

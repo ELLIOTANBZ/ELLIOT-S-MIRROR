@@ -53,6 +53,7 @@ def init_db(path: Path | None = None) -> None:
       ensure_column(conn, "organisation_relationships", "trained_schemes", "TEXT NOT NULL DEFAULT ''")
       ensure_column(conn, "ess_records", "is_valid", "INTEGER NOT NULL DEFAULT 1")
       ensure_column(conn, "project_records", "project_leads", "TEXT NOT NULL DEFAULT ''")
+      ensure_column(conn, "project_records", "project_role", "TEXT NOT NULL DEFAULT ''")
       ensure_column(conn, "competency_source_weights", "scorecard_weight", "REAL NOT NULL DEFAULT 0.30")
       migrate_competency_source_weights_by_role(conn)
 

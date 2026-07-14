@@ -45,10 +45,11 @@ TRAINING_ASSIGNED_DATE_COLUMNS = ("assigned_date", "Assigned Date", "Start Date"
 TRAINING_COMPLETED_DATE_COLUMNS = ("completed_date", "Completed Date", "Completion Date", "Date Completed")
 TRAINING_COMPETENCY_GAP_COLUMNS = ("competency_gap", "Competency Gap", "Gap Addressed", "Competency Addressed")
 PROJECT_NAME_COLUMNS = ("project_name", "Project Name", "Project", "Project Title")
-PROJECT_LEAD_COLUMNS = ("project_leads", "Project Leads", "Project Lead", "Lead")
+PROJECT_LEAD_COLUMNS = ("project_leads", "Project Managers", "Project Manager", "Project Leads", "Project Lead", "Lead")
+PROJECT_ROLE_COLUMNS = ("project_role", "Project Role", "What Was Your Role?", "What was your role?", "Officer Project Role")
 PROJECT_REQUIREMENTS_COLUMNS = ("requirements_text", "Requirements", "Required Work", "Success Criteria")
 PROJECT_EVIDENCE_COLUMNS = ("evidence_text", "Evidence", "What Was Done", "Work Done")
-PROJECT_COMMENTS_COLUMNS = ("supervisor_comments", "Project Lead Comments", "Comments", "Remarks")
+PROJECT_COMMENTS_COLUMNS = ("supervisor_comments", "Project Manager Comments", "Project Lead Comments", "Comments", "Remarks")
 READINESS_ROLE_COLUMNS = ("readiness_role", "Readiness Role", "Settings Role", "Weight Role")
 CORE_WEIGHT_COLUMNS = ("core_weight", "Core Weight", "Core Competency Weight")
 FUNCTIONAL_WEIGHT_COLUMNS = ("functional_weight", "Functional Weight", "Functional Competency Weight")
@@ -744,6 +745,7 @@ def import_projects(frame: pd.DataFrame) -> dict[str, Any]:
     officer_col = configured_column(frame, "projects", "officer_id", OFFICER_COLUMNS)
     name_col = configured_column(frame, "projects", "project_name", PROJECT_NAME_COLUMNS)
     lead_col = configured_column(frame, "projects", "project_leads", PROJECT_LEAD_COLUMNS)
+    role_col = configured_column(frame, "projects", "project_role", PROJECT_ROLE_COLUMNS)
     requirements_col = configured_column(frame, "projects", "requirements_text", PROJECT_REQUIREMENTS_COLUMNS)
     evidence_col = configured_column(frame, "projects", "evidence_text", PROJECT_EVIDENCE_COLUMNS)
     comments_col = configured_column(frame, "projects", "supervisor_comments", PROJECT_COMMENTS_COLUMNS)
@@ -778,6 +780,7 @@ def import_projects(frame: pd.DataFrame) -> dict[str, Any]:
                 officer_id,
                 project_name,
                 ";".join(item for item in project_leads if item),
+                str(row[role_col]).strip() if role_col else "",
                 requirements,
                 str(row[evidence_col]).strip() if evidence_col else "",
                 str(row[comments_col]).strip() if comments_col else "",
@@ -789,6 +792,7 @@ def import_projects(frame: pd.DataFrame) -> dict[str, Any]:
             officer_id,
             project_name,
             project_leads,
+            project_role,
             requirements,
             evidence_text,
             supervisor_comments,
@@ -817,6 +821,7 @@ def import_projects(frame: pd.DataFrame) -> dict[str, Any]:
                     """
                     UPDATE project_records
                     SET project_leads = ?,
+                        project_role = ?,
                         requirements_text = ?,
                         evidence_text = ?,
                         supervisor_comments = ?,
@@ -825,6 +830,7 @@ def import_projects(frame: pd.DataFrame) -> dict[str, Any]:
                     """,
                     (
                         project_leads,
+                        project_role,
                         requirements,
                         evidence_text,
                         supervisor_comments,
@@ -835,14 +841,15 @@ def import_projects(frame: pd.DataFrame) -> dict[str, Any]:
                 conn.execute(
                     """
                     INSERT INTO project_records
-                      (officer_id, project_name, project_leads, requirements_text,
+                      (officer_id, project_name, project_leads, project_role, requirements_text,
                        evidence_text, supervisor_comments, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                     """,
                     (
                         officer_id,
                         project_name,
                         project_leads,
+                        project_role,
                         requirements,
                         evidence_text,
                         supervisor_comments,

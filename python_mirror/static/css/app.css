@@ -706,6 +706,27 @@ textarea {
   font-weight: 800;
 }
 
+.traffic-light {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px rgba(15, 35, 28, .14);
+}
+
+.traffic-light.red {
+  background: #c2412d;
+}
+
+.traffic-light.amber {
+  background: #d99b20;
+}
+
+.traffic-light.green {
+  background: #0f6e56;
+}
+
 .detail-list {
   display: grid;
   gap: 9px;
@@ -3210,5 +3231,52 @@ button:hover,
 @media (max-width: 900px) {
   .dashboard-career-layout .career-pathway-card {
     grid-template-columns: 1fr;
+  }
+}
+
+.appraisal-controls .form-card {
+  grid-template-columns: minmax(160px, 220px) minmax(160px, 220px) max-content;
+  align-items: end;
+}
+
+.appraisal-form {
+  display: grid;
+  gap: 18px;
+}
+
+.appraisal-table {
+  display: grid;
+  grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.1fr) minmax(150px, .7fr) minmax(260px, 1.4fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.appraisal-table-header {
+  color: #48685a;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.appraisal-table textarea,
+.appraisal-table input,
+.appraisal-table select,
+.appraisal-sections textarea {
+  width: 100%;
+}
+
+.appraisal-sections {
+  display: grid;
+  gap: 16px;
+}
+
+@media (max-width: 980px) {
+  .appraisal-controls .form-card,
+  .appraisal-table {
+    grid-template-columns: 1fr;
+  }
+
+  .appraisal-table-header {
+    display: none;
   }
 }

@@ -17,11 +17,12 @@ def find_project(project_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-## Saves a new project created by the officer. stores: officer_id, project_name, selected project_leads, and requirements_text.
+## Saves a new project created by the officer. stores: officer_id, project_name, selected project managers, project role, and requirements_text.
 def save_project_record(values: dict[str, Any]) -> None:
     officer_id = str(values.get("officer_id")).strip()
     project_name = str(values.get("project_name")).strip()
     project_leads = ";".join(values.getlist("project_leads"))
+    project_role = str(values.get("project_role")).strip()
     requirements_text = str(values.get("requirements_text")).strip()
 
     if not officer_id:
@@ -29,7 +30,9 @@ def save_project_record(values: dict[str, Any]) -> None:
     if not project_name:
         raise ValueError("Project needs a name")
     if not project_leads:
-        raise ValueError("Project needs at least one project lead")
+        raise ValueError("Project needs at least one project manager")
+    if not project_role:
+        raise ValueError("Project needs your role")
     if not requirements_text:
         raise ValueError("Project needs requirements")
 
@@ -50,24 +53,25 @@ def save_project_record(values: dict[str, Any]) -> None:
                 """
                 UPDATE project_records
                 SET project_leads = ?,
+                    project_role = ?,
                     requirements_text = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
-                (project_leads, requirements_text, existing["id"]),
+                (project_leads, project_role, requirements_text, existing["id"]),
             )
         else:
             conn.execute(
                 """
                 INSERT INTO project_records
-                (officer_id, project_name, project_leads, requirements_text, evidence_text, supervisor_comments, updated_at)
-                VALUES (?, ?, ?, ?, '', '', CURRENT_TIMESTAMP)
+                (officer_id, project_name, project_leads, project_role, requirements_text, evidence_text, supervisor_comments, updated_at)
+                VALUES (?, ?, ?, ?, ?, '', '', CURRENT_TIMESTAMP)
                 """,
-                (officer_id, project_name, project_leads, requirements_text),
+                (officer_id, project_name, project_leads, project_role, requirements_text),
             )
 
 
-## let project lead store: evidence & comments
+## let project manager store: evidence & comments
 def update_project_supervisor_evidence(project_id: str, evidence_text: str, supervisor_comments: str) -> None:
     with connect() as conn:
         conn.execute(
@@ -82,7 +86,7 @@ def update_project_supervisor_evidence(project_id: str, evidence_text: str, supe
 
 ## to display on projects
 
-## HELPER: return project lead NAMES, which will then be added into the dict by project_rows_with_lead_names
+## HELPER: return project manager NAMES, which will then be added into the dict by project_rows_with_lead_names
 def project_lead_names(project_leads: str) -> str:
     lead_ids = [item.strip() for item in project_leads.split(";") if item.strip()]
     if not lead_ids:
@@ -96,7 +100,7 @@ def project_lead_names(project_leads: str) -> str:
     names_by_id = {row["id"]: row["name"] for row in rows}
     return ", ".join(names_by_id.get(lead_id, lead_id) for lead_id in lead_ids)
 
-## HELPER: just to add project lead NAMES into each dict
+## HELPER: just to add project manager NAMES into each dict
 def project_rows_with_lead_names(rows) -> list[dict[str, Any]]:
     projects = [dict(row) for row in rows]
     for project in projects:
@@ -121,7 +125,7 @@ def projects_for(officer_id: str) -> list[dict[str, Any]]:
     return project_rows_with_lead_names(rows)
 
 
-## Shows projects where the logged-in TL/CSM/AH was selected as a project lead (LIKE means ==). Also includes their own projects.
+## Shows projects where the logged-in TL/CSM/AH was selected as a project manager (LIKE means ==). Also includes their own projects.
 def projects_for_project_lead(user_id: str) -> list[dict[str, Any]]:
     with connect() as conn:
         rows = conn.execute(

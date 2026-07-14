@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Appraisal</p>
+    <h1>{{ officer.name }}</h1>
+    <p>Generate a draft appraisal using MIRROR evidence for the selected period.</p>
+  </div>
+</header>
+
+<section class="panel appraisal-controls">
+  <form method="post" class="form-card embedded">
+    <input type="hidden" name="action" value="generate">
+    <label>Start date
+      <input type="date" name="start_date" value="{{ start_date }}" required>
+    </label>
+    <label>End date
+      <input type="date" name="end_date" value="{{ end_date }}" required>
+    </label>
+    <button type="submit">Generate Appraisal Draft</button>
+  </form>
+</section>
+
+{% if appraisal %}
+<form method="post" action="{{ url_for('download_appraisal') }}" class="appraisal-form">
+  <input type="hidden" name="start_date" value="{{ start_date }}">
+  <input type="hidden" name="end_date" value="{{ end_date }}">
+  <input type="hidden" name="officer_id" value="{{ officer.id }}">
+
+  <section class="panel">
+    <div class="row-between">
+      <div>
+        <p class="eyebrow">Draft</p>
+        <h2>1. My achievements based on achieved targets</h2>
+      </div>
+      <button type="submit">Download Edited Draft</button>
+    </div>
+    <div class="appraisal-table">
+      <div class="appraisal-table-header">Category</div>
+      <div class="appraisal-table-header">Target sets</div>
+      <div class="appraisal-table-header">Target completion date</div>
+      <div class="appraisal-table-header">Achievements & progress</div>
+      {% for item in appraisal.achievements %}
+      <select name="achievement_category">
+        {% for option in categories %}
+        <option value="{{ option }}" {% if item.category == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <textarea name="achievement_target_sets" rows="4">{{ item.target_sets }}</textarea>
+      <input name="achievement_target_completion_date" value="{{ item.target_completion_date }}">
+      <textarea name="achievement_progress" rows="4">{{ item.achievements_progress }}</textarea>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel appraisal-sections">
+    <label>2. My work concerns/needs
+      <textarea name="work_concerns" rows="4">{{ appraisal.work_concerns }}</textarea>
+    </label>
+    <label>3. My strengths & areas for further development
+      <textarea name="strengths_development" rows="4">{{ appraisal.strengths_development }}</textarea>
+    </label>
+    <label>4. My career goals/aspirations
+      <textarea name="career_goals" rows="4">{{ appraisal.career_goals }}</textarea>
+    </label>
+    <label>5. What can I do to further improve/develop myself
+      <textarea name="improve_develop" rows="4">{{ appraisal.improve_develop }}</textarea>
+    </label>
+    <label>6. How my supervisor can help me do my job better
+      <textarea name="supervisor_help" rows="4">{{ appraisal.supervisor_help }}</textarea>
+    </label>
+    <label>7. Any other matters
+      <textarea name="other_matters" rows="4">{{ appraisal.other_matters }}</textarea>
+    </label>
+    <button type="submit">Download Edited Draft</button>
+  </section>
+</form>
+{% else %}
+<section class="panel">
+  <p class="muted">Choose a timeframe and generate a draft. You can edit every field before downloading.</p>
+</section>
+{% endif %}
+{% endblock %}

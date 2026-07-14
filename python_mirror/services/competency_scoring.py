@@ -459,19 +459,22 @@ Score the project evidence against these role-specific competency requirements:
 Project Name:
 {project["project_name"]}
 
+Officer's role in the project:
+{project.get("project_role", "")}
+
 Project requirements:
 {project["requirements_text"]}
 
 What was done:
 {project["evidence_text"]}
 
-Project lead comments:
+Project manager comments:
 {project["supervisor_comments"]}
 
 Rules:
 - Score from 0 to 100,
-- Score based on how well the evidence meets the requirements and project lead comments.
-- Use project lead comments as supporting evidence.
+- Score based on how well the evidence meets the requirements and project manager comments.
+- Use project manager comments as supporting evidence.
 - If there is not enough evidence for a competency, use score 0 and explain "No evidence".
 - Return one row for every competency.
 

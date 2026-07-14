@@ -444,6 +444,15 @@ def generate_and_cache_competency_development_summaries(officer_id: str) -> int:
     return len(development_summaries)
 
 
+def ensure_competency_development_summaries(officer_id: str) -> int:
+    summary = officer_summary(officer_id)
+    final_scores = final_competency_scores(officer_id, summary)
+    cached = cached_competency_development_summaries(officer_id, summary, final_scores)
+    if cached or not ai_is_configured():
+        return len(cached)
+    return generate_and_cache_competency_development_summaries(officer_id)
+
+
 ## main function
 def readiness_for(officer_id: str) -> dict[str, Any]:
     summary = officer_summary(officer_id)

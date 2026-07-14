@@ -60,6 +60,7 @@
       </tr>
       <tr class="team-competency-row">
         <td colspan="5">
+          <p class="competency-rationale-note">{{ row.evidence_summary }}</p>
           {% for group_name, items in row.competency_groups.items() %}
           <details class="team-competency-section">
             <summary>{{ group_name|title }}</summary>
@@ -73,12 +74,6 @@
                 </summary>
                 <div class="competency-detail">
                   <p>{{ item.description }}</p>
-                  <h4>Score rationale</h4>
-                  <p>{{ item.rationale }}</p>
-                  <div class="competency-evidence">
-                    <h4>Supporting Evidence</h4>
-                    <p>{{ item.evidence }}</p>
-                  </div>
                   <h4>Development summary</h4>
                   <p>{{ item.development }}</p>
                 </div>

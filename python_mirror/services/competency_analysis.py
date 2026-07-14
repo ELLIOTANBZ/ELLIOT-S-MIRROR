@@ -198,7 +198,7 @@ Definitions:
 - evidence_trends: written trends from audit, scorecard, interaction, and project evidence.
 - customer_feedback_trends: written trends from ESS/customer feedback.
 - interaction_observations: written observations from member_query and officer_response evidence.
-- project_observations: written observations from project requirements, evidence, and project lead comments.
+- project_observations: written observations from project requirements, evidence, and project manager comments.
 - competency_gaps: competencies requiring improvement.
 - strengths: positive behaviours supported by evidence.
 - learning_pathway: practical development actions.
@@ -228,7 +228,7 @@ Return exactly this JSON structure:
     "trend from member query/officer response evidence"
     ],
     "project_observations": [
-    "trend from project requirement/evidence/project lead comment evidence"
+    "trend from project requirement/evidence/project manager comment evidence"
     ],
     "improvement_advice": [
     "specific practical improvement advice"
@@ -252,7 +252,7 @@ Rules:
 - Invalid ESS must not lower the officer's level or rating, but the feedback text may still be mentioned as a recurring theme if supported by the supplied records.
 - Audit and scorecard should be used to describe quality/performance patterns, not just quote numbers.
 - Interactions should be used to identify response quality patterns from member_query and officer_response.
-- Projects should be used to describe how well project evidence appears to meet requirements and project lead comments.
+- Projects should be used to describe how well project evidence appears to meet requirements and project manager comments.
 - The dashboard summary should be written in natural language for the officer. Avoid simply listing scores.
 - Return empty lists when no evidence supports a section.
 - Do not treat missing data as poor performance.

@@ -47,10 +47,11 @@
   "projects": {
     "officer_id": "officer_id",
     "project_name": "Project Name",
-    "project_leads": "Project Leads",
+    "project_leads": "Project Managers",
+    "project_role": "What was your role?",
     "requirements_text": "Requirements",
     "evidence_text": "What Was Done",
-    "supervisor_comments": "Project Lead Comments"
+    "supervisor_comments": "Project Manager Comments"
   },
   "readiness_settings": {
     "role": "Readiness Role",

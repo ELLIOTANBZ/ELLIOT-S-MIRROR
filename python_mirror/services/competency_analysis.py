@@ -289,11 +289,11 @@ def cached_ai_analysis(summary: dict[str, Any]) -> dict[str, Any] | None:
 
 
 ## main function
-def analyse_officer(officer_id: str, use_ai: bool) -> dict[str, Any]:
+def analyse_officer(officer_id: str, use_ai: bool, force: bool = False) -> dict[str, Any]:
     summary = officer_summary(officer_id)
     if use_ai:
         cached_result = cached_ai_analysis(summary)
-        if cached_result:
+        if cached_result and not force:
             return cached_result
         try:
             result = ai_analysis(summary)

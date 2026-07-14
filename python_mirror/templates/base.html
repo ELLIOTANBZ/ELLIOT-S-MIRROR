@@ -150,6 +150,17 @@
     {% endwith %}
     {% block content %}{% endblock %} <!-- Put the child page content here. -->
   </main>
+  <script>
+    document.querySelectorAll("form[data-ai-loading]").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const button = form.querySelector("button[type='submit'], button:not([type])");
+        if (!button) return;
+        button.disabled = true;
+        button.dataset.originalText = button.textContent;
+        button.innerHTML = '<span class="loading-spinner" aria-hidden="true"></span><span>Loading AI...</span>';
+      });
+    });
+  </script>
 </body>
 
 </html>

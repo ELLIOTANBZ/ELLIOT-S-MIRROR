@@ -17,6 +17,10 @@
     </select>
   </form>
   {% endif %}
+  <form method="post" action="{{ url_for('generate_dashboard_ai_summary') }}" data-ai-loading>
+    <input type="hidden" name="officer_id" value="{{ officer.id }}">
+    <button type="submit" title="Refresh AI summary">↻</button>
+  </form>
 </header>
 
 <section class="dashboard-career-layout">
@@ -76,13 +80,7 @@
 
 <section class="feedback-grid">
   <article class="panel feedback-card">
-    <div class="row-between">
-      <p class="eyebrow">AI Feedback Summary</p>
-      <form method="post" action="{{ url_for('generate_dashboard_ai_summary') }}">
-        <input type="hidden" name="officer_id" value="{{ officer.id }}">
-        <button type="submit">Generate AI Summary</button>
-      </form>
-    </div>
+    <p class="eyebrow">AI Feedback Summary</p>
     <h2>{{ data.feedback.overall_level }} level</h2>
     {% if data.feedback.summary.assessment %}
     <p>{{ data.feedback.summary.assessment }}</p>

@@ -23,20 +23,19 @@ def save_project_record(values: dict[str, Any]) -> None:
     project_name = str(values.get("project_name")).strip()
     project_leads = ";".join(values.getlist("project_leads"))
     project_role = str(values.get("project_role")).strip()
-    requirements_text = str(values.get("requirements_text")).strip()
-    if not requirements_text:
-        guided_requirements = [
-            ("Project purpose", values.get("project_purpose", "")),
-            ("Targets or deliverables", values.get("project_targets", "")),
-            ("People or relationships involved", values.get("project_relationships", "")),
-            ("Capability/capacity built", values.get("project_capability", "")),
-            ("Timeline or completion status", values.get("project_timeline", "")),
-        ]
-        requirements_text = "\n".join(
-            f"{label}: {str(answer).strip()}"
-            for label, answer in guided_requirements
-            if str(answer).strip()
-        )
+    guided_requirements = [
+        ("Project purpose", values.get("project_purpose", "")),
+        ("Targets or deliverables", values.get("project_targets", "")),
+        ("Requirements", values.get("requirements_text", "")),
+        ("People or relationships involved", values.get("project_relationships", "")),
+        ("Capability/capacity built", values.get("project_capability", "")),
+        ("Timeline or completion status", values.get("project_timeline", "")),
+    ]
+    requirements_text = "\n".join(
+        f"{label}: {str(answer).strip()}"
+        for label, answer in guided_requirements
+        if str(answer).strip()
+    )
 
     if not officer_id:
         raise ValueError("Project needs an officer")

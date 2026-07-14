@@ -98,7 +98,7 @@
       if (!box.open || box.dataset.loadedDevelopment === "1") return;
       const target = box.querySelector("[data-development-summary]");
       if (!target) return;
-      target.textContent = "Generating development summary...";
+      target.innerHTML = '<span class="inline-loading-spinner" aria-hidden="true"></span>Generating development summary...';
       try {
         const response = await fetch("{{ url_for('competency_development_summary') }}", {
           method: "POST",

@@ -45,6 +45,10 @@
         <label>What targets or deliverables mattered?
           <textarea name="project_targets" rows="3" required></textarea>
         </label>
+        <label>Requirements
+          <textarea name="requirements_text" rows="3" required
+            placeholder="List any formal requirements, success criteria, expected outputs, or measures of success."></textarea>
+        </label>
         <label>Who did you work with or build relationships with?
           <textarea name="project_relationships" rows="3"></textarea>
         </label>
@@ -87,7 +91,7 @@
 
         {% set lead_ids = project.project_leads.split(";") %}
         {% if logged_in_user.id in lead_ids or logged_in_user.role == "Admin" %}
-        <form method="post" class="form-card embedded">
+        <form method="post" class="form-card embedded" data-ai-loading>
           <input type="hidden" name="action" value="save_supervisor_evidence">
           <input type="hidden" name="project_id" value="{{ project.id }}">
 

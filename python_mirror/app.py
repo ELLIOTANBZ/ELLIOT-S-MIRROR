@@ -224,7 +224,7 @@ def generate_dashboard_ai_summary():
         return redirect(url_for("dashboard"))
 
     try:
-        result = analyse_officer(officer["id"], use_ai=True)
+        result = analyse_officer(officer["id"], use_ai=True, force=True)
         app.logger.info("Dashboard AI summary result officer_id=%s mode=%s", officer["id"], result.get("mode"))
         if result.get("mode") == "local_rules_after_ai_error":
             app.logger.error("Dashboard AI summary failed officer_id=%s error=%s", officer["id"], result.get("ai_error"))

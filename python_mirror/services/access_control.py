@@ -6,9 +6,7 @@ import sqlite3
 from typing import Any
 
 from db import connect
-
-SUPERVISOR_ROLES = {"CSM", "AH"}
-TEAM_ROLES = {"TL", *SUPERVISOR_ROLES}
+from services.role_model import CUSTOM_MANAGER_ROLES, SUPERVISOR_ROLES, TEAM_ROLES
 
 
 ## Returns one user ID and the IDs of everyone below it in the org chart.
@@ -85,4 +83,13 @@ def visible_users(
 
 ## Can this role open Team Overview?
 def can_view_team(user: dict[str, Any]) -> bool:
-    return user["role"] in {*TEAM_ROLES, "Admin"}
+    if user["role"] == "Admin":
+        return True
+    if user["role"] in CUSTOM_MANAGER_ROLES:
+        with connect() as conn:
+            row = conn.execute(
+                "SELECT leads_team FROM manager_profiles WHERE officer_id = ?",
+                (user["id"],),
+            ).fetchone()
+        return bool(row and row["leads_team"])
+    return user["role"] in TEAM_ROLES

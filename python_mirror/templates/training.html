@@ -8,30 +8,12 @@
   </div>
 </header>
 
-<section class="training-counts">
-  {% for status in ["Pending", "In Progress", "Completed"] %}
-  <article class="metric training-status {{ status|lower|replace(' ', '-') }}">
-    <span>{{ status }}</span>
-    <strong>{{ data.counts[status] }}</strong>
-    <small>training records</small>
-  </article>
-  {% endfor %}
-</section>
-
 <section class="panel">
   <div class="row-between training-records-header">
     <h2>Training Records</h2>
 
     <form method="get" class="filter-controls training-filters">
       <input name="search" value="{{ data.filters.search }}" placeholder="Search Training">
-
-      <select name="status">
-        {% for status in ["All", "Pending", "In Progress", "Completed"] %}
-        <option value="{{status}}" {% if data.filters.status==status %} selected {% endif %}>
-          {{status}}
-        </option>
-        {% endfor %}
-      </select>
 
       <label class="checkbox-control">
         <input type="checkbox" name="show_archived" value="1" {% if data.filters.show_archived %} checked {% endif %}>

@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MIRROR</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v='flash-overlay-1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v='role-model-1') }}">
 </head>
 
 <body>
@@ -68,7 +68,7 @@
       </a>
       {% endif %}
 
-      {% if nav_user.role in ["TL", "CSM", "AH"] %}
+      {% if nav_user_can_view_team %}
       <a class="{{ 'active' if request.endpoint == 'team' else '' }}" href="{{ url_for('team') }}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
         <span>Team Overview</span>

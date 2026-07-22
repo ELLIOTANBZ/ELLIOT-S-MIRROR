@@ -13,8 +13,10 @@ from services.competency_scoring import (
     CORRESPONDENCE_COMPETENCIES,
     CORE_COMPETENCIES,
     FUNCTIONAL_COMPETENCIES,
+    LEADERSHIP_COMPETENCIES,
     blended_competency_score,
     evidence_score_map_between,
+    officer_has_leadership,
     score_audit_for_all_competencies,
     score_scorecard_for_all_competencies,
 )
@@ -235,12 +237,15 @@ def dashboard_portal_data(officer_id: str, months: int = 3) -> dict[str, Any]:
         core_score = average([blended_scores.get(name, 0) for name in CORE_COMPETENCIES]) or 0
         functional_score = average([blended_scores.get(name, 0) for name in FUNCTIONAL_COMPETENCIES]) or 0
         correspondence_score = average([blended_scores.get(name, 0) for name in CORRESPONDENCE_COMPETENCIES]) or 0
+        leadership_score = average([blended_scores.get(name, 0) for name in LEADERSHIP_COMPETENCIES]) or 0
 
         overall_score = weighted_readiness_score(
             settings=readiness["settings"],
             core=core_score,
             functional=functional_score,
             correspondence=correspondence_score,
+            leadership=leadership_score,
+            include_leadership=officer_has_leadership(officer_id),
         )
 
         label_day = (5, 15, 25)[third]

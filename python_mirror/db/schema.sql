@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('CSE', 'TL', 'CSM', 'AH', 'Admin')),
+  role TEXT NOT NULL CHECK (role IN ('Executive', 'CSE', 'ACSM (TL)', 'ACSM (CA)', 'AM', 'CSM (CS6)', 'AH (CS6)', 'Manager', 'CSM (CS7)', 'AH (CS7)', 'Senior Manager', 'Admin')),
   record_version INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -127,19 +127,21 @@ CREATE TABLE IF NOT EXISTS career_profiles (
 CREATE TABLE IF NOT EXISTS readiness_settings (
   role TEXT PRIMARY KEY,
   core_weight REAL NOT NULL DEFAULT 0.25,
-  functional_weight REAL NOT NULL DEFAULT 0.15,
-  correspondence_weight REAL NOT NULL DEFAULT 0.15,
+  functional_weight REAL NOT NULL DEFAULT 0.25,
+  correspondence_weight REAL NOT NULL DEFAULT 0.25,
+  leadership_weight REAL NOT NULL DEFAULT 0.25,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS readiness_thresholds (
+  tier TEXT NOT NULL DEFAULT 'c?4',
   stage TEXT NOT NULL,
   metric TEXT NOT NULL,
   display_name TEXT NOT NULL,
   minimum_value REAL NOT NULL,
   unit TEXT NOT NULL DEFAULT 'score',
   sequence INTEGER NOT NULL DEFAULT 1,
-  PRIMARY KEY(stage, metric)
+  PRIMARY KEY(tier, stage, metric)
 );
 
 CREATE TABLE IF NOT EXISTS competency_source_weights (
@@ -210,4 +212,13 @@ CREATE TABLE IF NOT EXISTS organisation_relationships (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(officer_id) REFERENCES users(id),
   FOREIGN KEY(manager_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS manager_profiles (
+  officer_id TEXT PRIMARY KEY,
+  handles_member_correspondence INTEGER NOT NULL DEFAULT 0,
+  handles_projects INTEGER NOT NULL DEFAULT 1,
+  leads_team INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(officer_id) REFERENCES users(id)
 );

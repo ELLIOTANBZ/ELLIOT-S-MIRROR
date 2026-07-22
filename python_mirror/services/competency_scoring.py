@@ -4,6 +4,12 @@ from services.ai_client import chat
 from services.calculations import average, normalise_column_name
 from services.metrics import parse_pass_fail
 from typing import Any
+from services.role_model import (
+    CUSTOM_MANAGER_ROLES,
+    configuration_role,
+    has_default_leadership,
+    role_family,
+)
 
 
 CORE_COMPETENCIES = [
@@ -173,23 +179,21 @@ AH_SCORABLE_COMPETENCIES = [
 ## Fill these in later when the role-specific competency requirements are confirmed.
 ## These are used by AI scoring for interactions and projects.
 ROLE_COMPETENCY_REQUIREMENTS = {
-    "CSE": {
+    role: {
         competency_name: ""
         for competency_name in ALL_SCORABLE_COMPETENCIES
-    },
-    "TL": {
-        competency_name: ""
-        for competency_name in ALL_SCORABLE_COMPETENCIES
-    },
-    "CSM": {
-        competency_name: ""
-        for competency_name in ALL_SCORABLE_COMPETENCIES
-    },
-    "AH": {
+    }
+    for role in ["Executive", "CSE", "ACSM (TL)", "ACSM (CA)", "AM", "CSM (CS6)", "CSM (CS7)"]
+}
+ROLE_COMPETENCY_REQUIREMENTS.update(
+    {
+        role: {
         competency_name: ""
         for competency_name in AH_SCORABLE_COMPETENCIES
-    },
-}
+        }
+        for role in ["AH (CS6)", "AH (CS7)", "Manager", "Senior Manager"]
+    }
+)
 
 
 INTERACTIONS_AI_RUBRICS = {
@@ -224,8 +228,63 @@ def officer_role_for_ai(officer_id: str) -> str:
     return row["role"] if row else "CSE"
 
 
+def manager_profile_for(officer_id: str) -> dict[str, bool]:
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT handles_member_correspondence, handles_projects, leads_team
+            FROM manager_profiles
+            WHERE officer_id = ?
+            """,
+            (officer_id,),
+        ).fetchone()
+    if not row:
+        return {
+            "handles_member_correspondence": False,
+            "handles_projects": True,
+            "leads_team": False,
+        }
+    return {
+        "handles_member_correspondence": bool(row["handles_member_correspondence"]),
+        "handles_projects": bool(row["handles_projects"]),
+        "leads_team": bool(row["leads_team"]),
+    }
+
+
+def officer_handles_member_correspondence(officer_id: str, role: str | None = None) -> bool:
+    role = role or officer_role_for_ai(officer_id)
+    if role_family(role) == "ah":
+        return False
+    if role in CUSTOM_MANAGER_ROLES:
+        return manager_profile_for(officer_id)["handles_member_correspondence"]
+    return True
+
+
+def officer_handles_projects(officer_id: str, role: str | None = None) -> bool:
+    role = role or officer_role_for_ai(officer_id)
+    if role in CUSTOM_MANAGER_ROLES:
+        return manager_profile_for(officer_id)["handles_projects"]
+    return True
+
+
+def officer_has_leadership(officer_id: str, role: str | None = None) -> bool:
+    role = role or officer_role_for_ai(officer_id)
+    if has_default_leadership(role):
+        return True
+    if role in CUSTOM_MANAGER_ROLES:
+        return manager_profile_for(officer_id)["leads_team"]
+    return False
+
+
 def scorable_competencies_for_role(role: str) -> list[str]:
-    if role == "AH":
+    if has_default_leadership(role) or role in CUSTOM_MANAGER_ROLES:
+        return AH_SCORABLE_COMPETENCIES
+    return ALL_SCORABLE_COMPETENCIES
+
+
+def scorable_competencies_for_officer(officer_id: str) -> list[str]:
+    role = officer_role_for_ai(officer_id)
+    if officer_has_leadership(officer_id, role):
         return AH_SCORABLE_COMPETENCIES
     return ALL_SCORABLE_COMPETENCIES
 
@@ -392,7 +451,7 @@ Return JSON in this exact shape:
 ## store AI results of score_interactions_with_ai into SQLite, returns how many score rows were saved
 def score_interactions_for_officer(officer_id: str) -> int:
     role = officer_role_for_ai(officer_id)
-    if role == "AH":
+    if not officer_handles_member_correspondence(officer_id, role):
         return 0
     with connect() as conn:
         interactions = [
@@ -497,6 +556,8 @@ Return JSON in this exact shape:
 ## store AI results of score_projects_with_ai into SQLite, returns how many score rows were saved
 def score_projects_for_officer(officer_id: str) -> int:
     role = officer_role_for_ai(officer_id)
+    if not officer_handles_projects(officer_id, role):
+        return 0
     with connect() as conn:
         projects = [
             dict(row)
@@ -634,14 +695,20 @@ def blended_competency_score(
         interaction_scores = evidence_score_map(officer_id, "interaction")
     if project_scores is None:
         project_scores = evidence_score_map(officer_id, "project")
+    if not officer_handles_member_correspondence(officer_id, role):
+        audit_scores = {}
+        scorecard_scores = {}
+        interaction_scores = {}
+    if not officer_handles_projects(officer_id, role):
+        project_scores = {}
 
-    if role == "AH":
+    if role_family(role) == "ah":
         return {
             competency_name: round(project_scores.get(competency_name, 0), 1)
             for competency_name in AH_SCORABLE_COMPETENCIES
         }
 
-    weights = source_weight_map(role)
+    weights = source_weight_map(configuration_role(role, leads_team=officer_has_leadership(officer_id, role)))
 
     final_scores = {}
 
@@ -662,7 +729,7 @@ def blended_competency_score(
         if competency_name in interaction_scores:                       ## does interaction_scores have a key called (competency_name)?
             base_sources.append(("interaction", interaction_scores[competency_name]))
 
-        if role == "CSE":
+        if role_family(role) == "cse":
             available_weight = sum(source_weights.get(source_name, 0) for source_name, _ in base_sources)
             if not base_sources or available_weight == 0:
                 base_total = 0

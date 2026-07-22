@@ -13,7 +13,6 @@ from db import connect, dumps, loads
 from services.calculations import average, percentage
 from services.competency_analysis import officer_summary
 from services.portal_defaults import ensure_portal_defaults
-from services.access_control import SUPERVISOR_ROLES
 from services.ai_client import ai_is_configured, ai_provider, chat
 from services.competency_scoring import (
     COMPETENCY_DESCRIPTIONS,
@@ -23,9 +22,11 @@ from services.competency_scoring import (
     FUNCTIONAL_COMPETENCIES,
     LEADERSHIP_COMPETENCIES,
     blended_competency_score,
+    officer_has_leadership,
     score_audit_for_all_competencies,
     score_scorecard_for_all_competencies,
 )
+from services.role_model import configuration_role, responsibilities_for_role, role_family, role_tier
 
 
 READINESS_STAGES = [
@@ -56,6 +57,8 @@ def profile_for(officer_id: str) -> dict[str, Any]:
     profile = dict(row)
     profile["responsibilities"] = loads(profile.pop("responsibilities_json"), [])
     profile["target_responsibilities"] = loads(profile.pop("target_responsibilities_json"), [])
+    profile["responsibilities"] = responsibilities_for_role(profile["current_role"])
+    profile["target_responsibilities"] = responsibilities_for_role(profile["target_role"])
     return profile
 
 
@@ -97,7 +100,7 @@ def team_readiness_average(officer_id: str) -> float:
     member_ids = team_member_ids(officer_id)
     scores = []
     for member_id in member_ids:
-        if officer_role(member_id) == "AH":
+        if role_family(officer_role(member_id)) == "ah":
             continue
         scores.append(readiness_for(member_id)["readiness_percent"])
     return round(average(scores) or 0, 1)
@@ -112,7 +115,7 @@ def final_competency_scores(officer_id: str, summary: dict[str, Any]) -> dict[st
     scorecard_scores = score_scorecard_for_all_competencies(scorecard_records)
 
     final_scores = blended_competency_score(officer_id, audit_scores, scorecard_scores)
-    if officer_role(officer_id) == "AH":
+    if role_family(officer_role(officer_id)) == "ah":
         final_scores["Team Development"] = team_readiness_average(officer_id)
     return final_scores
 
@@ -140,11 +143,14 @@ def weighted_readiness_score(
     core,
     functional,
     correspondence,
+    leadership=0,
+    include_leadership=False,
 ):
     active_weight = (
         settings["core_weight"]
         + settings["functional_weight"]
         + settings["correspondence_weight"]
+        + (settings["leadership_weight"] if include_leadership else 0)
     )
     if not active_weight:
         return 0
@@ -152,6 +158,7 @@ def weighted_readiness_score(
         core * settings["core_weight"]
         + functional * settings["functional_weight"]
         + correspondence * settings["correspondence_weight"]
+        + (leadership * settings["leadership_weight"] if include_leadership else 0)
     ) / active_weight
 
 
@@ -165,6 +172,7 @@ def weighted_readiness_completion(
         settings["core_weight"]
         + settings["functional_weight"]
         + settings["correspondence_weight"]
+        + (settings["leadership_weight"] if "leadership" in thresholds else 0)
     )
     if not active_weight:
         return 0
@@ -174,7 +182,10 @@ def weighted_readiness_completion(
         ("core", "core_weight"),
         ("functional", "functional_weight"),
         ("correspondence", "correspondence_weight"),
+        ("leadership", "leadership_weight"),
     ):
+        if metric == "leadership" and metric not in thresholds:
+            continue
         minimum = thresholds.get(metric, 100)
         value = scores.get(metric, 0)
         completion = percentage(value, minimum)
@@ -271,7 +282,11 @@ def radar_items_for(officer_id: str, summary: dict[str, Any], scores: dict[str, 
 
 
 ## Build the competency breakdown boxes shown in My Readiness.
-def competency_groups(officer_id: str, include_development_ai: bool = True) -> dict[str, list[dict[str, Any]]]:
+def competency_groups(
+    officer_id: str,
+    include_development_ai: bool = True,
+    include_leadership: bool = True,
+) -> dict[str, list[dict[str, Any]]]:
     summary = officer_summary(officer_id)
     audit_records = summary.get("audit", [])
     scorecard_records = summary.get("scorecard", [])
@@ -323,7 +338,7 @@ def competency_groups(officer_id: str, include_development_ai: bool = True) -> d
         "functional": make_rows(FUNCTIONAL_COMPETENCIES, final_scores),
         "correspondence": make_rows(CORRESPONDENCE_COMPETENCIES, final_scores),
     }
-    if officer_role(officer_id) == "AH":
+    if include_leadership and officer_has_leadership(officer_id):
         groups["leadership"] = make_rows(LEADERSHIP_COMPETENCIES, final_scores)
     return groups
 
@@ -341,7 +356,7 @@ def generate_competency_development_summaries(
         *FUNCTIONAL_COMPETENCIES,
         *CORRESPONDENCE_COMPETENCIES,
     ]
-    if officer_role(officer_id) == "AH":
+    if officer_has_leadership(officer_id):
         competency_names.extend(LEADERSHIP_COMPETENCIES)
 
     system = "You write concise, evidence-based competency development advice. Return JSON only."
@@ -458,12 +473,13 @@ def readiness_for(officer_id: str) -> dict[str, Any]:
     summary = officer_summary(officer_id)
     profile = profile_for(officer_id)
     scores = grouped_scores(officer_id, summary)
+    has_leadership = officer_has_leadership(officer_id)
 
     ## load the readiness weights for this officer's current role
     with connect() as conn:
         settings_row = conn.execute(
             "SELECT * FROM readiness_settings WHERE role = ?",
-            (readiness_settings_role(officer_role(officer_id)),),
+            (configuration_role(officer_role(officer_id), leads_team=has_leadership),),
         ).fetchone()
         if settings_row is None:
             settings_row = conn.execute(
@@ -474,12 +490,14 @@ def readiness_for(officer_id: str) -> dict[str, Any]:
         threshold_rows = conn.execute(
             """
             SELECT * FROM readiness_thresholds
+            WHERE tier = ?
             ORDER BY CASE stage
               WHEN 'Meeting Expectations' THEN 1
               WHEN 'Stretch Assignment Ready' THEN 2
               ELSE 3 END,
               sequence
-            """
+            """,
+            (f"c?{role_tier(officer_role(officer_id))}",),
         ).fetchall()
 
     ## each score * its configured weight
@@ -488,6 +506,8 @@ def readiness_for(officer_id: str) -> dict[str, Any]:
         core=scores["core"],
         functional=scores["functional"],
         correspondence=scores["correspondence"],
+        leadership=scores["leadership"],
+        include_leadership=has_leadership,
     )
 
     all_scores = {
@@ -499,6 +519,8 @@ def readiness_for(officer_id: str) -> dict[str, Any]:
     thresholds_by_stage: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in threshold_rows:
         threshold = dict(row)
+        if threshold["metric"] == "leadership" and not has_leadership:
+            continue
         threshold["value"] = round(all_scores.get(threshold["metric"], 0), 1)
         threshold["met"] = threshold["value"] >= threshold["minimum_value"]
         thresholds_by_stage[threshold["stage"]].append(threshold)
@@ -542,6 +564,7 @@ def readiness_for(officer_id: str) -> dict[str, Any]:
         "scores": scores,
         "profile": profile,
         "settings": settings,
+        "has_leadership": has_leadership,
         "radar_items": radar_items,
         "radar_polygon": radar_polygon,
         "component_scores": {

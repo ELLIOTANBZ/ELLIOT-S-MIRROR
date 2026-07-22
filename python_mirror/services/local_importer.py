@@ -17,6 +17,7 @@ from services.competency_scoring import (
     score_interactions_for_officer,
     score_projects_for_officer,
 )
+from services.role_model import clean_role_name, clean_weight_role_name, role_family
 
 ## FALLBACK: If config/column_map.local.json does not exist, try these common names.
 DATE_COLUMNS = ("upload_date", "uploadDate", "date", "Date", "Upload Date", "Survey Date")
@@ -27,8 +28,9 @@ TEAM_COLUMNS = ("team_name", "Team Name", "team", "Team")
 TRAINED_SCHEMES_COLUMNS = ("trained_schemes", "Trained Schemes", "Schemes", "Trained In")
 CURRENT_ROLE_COLUMNS = ("current_role", "Current Role")
 TARGET_ROLE_COLUMNS = ("target_role", "Target Role")
-RESPONSIBILITIES_COLUMNS = ("responsibilities", "Key Responsibilities", "Current Responsibilities")
-TARGET_RESPONSIBILITIES_COLUMNS = ("target_responsibilities", "Target Responsibilities", "Next Role Responsibilities")
+HANDLES_MEMBER_CORRESPONDENCE_COLUMNS = ("handles_member_correspondence", "Handles Member Correspondence")
+HANDLES_PROJECTS_COLUMNS = ("handles_projects", "Handles Projects")
+LEADS_TEAM_COLUMNS = ("leads_team", "Leads Team")
 SCORE_COLUMNS = ("total_score", "Total Score", "score", "Score", "Audit Score", "Percentage")
 RATING_COLUMNS = ("rating", "Rating", "ESS Rating", "Survey Rating", "Customer Rating")
 FEEDBACK_COLUMNS = ("feedback", "Feedback", "verbatim", "Verbatim", "Comment", "Comments")
@@ -54,7 +56,9 @@ READINESS_ROLE_COLUMNS = ("readiness_role", "Readiness Role", "Settings Role", "
 CORE_WEIGHT_COLUMNS = ("core_weight", "Core Weight", "Core Competency Weight")
 FUNCTIONAL_WEIGHT_COLUMNS = ("functional_weight", "Functional Weight", "Functional Competency Weight")
 CORRESPONDENCE_WEIGHT_COLUMNS = ("correspondence_weight", "Correspondence Weight", "Correspondence Competency Weight")
+LEADERSHIP_WEIGHT_COLUMNS = ("leadership_weight", "Leadership Weight", "Leadership Competency Weight")
 THRESHOLD_STAGE_COLUMNS = ("threshold_stage", "Threshold Stage", "Readiness Stage", "Stage")
+THRESHOLD_TIER_COLUMNS = ("threshold_tier", "Threshold Tier", "Tier", "Readiness Tier")
 THRESHOLD_METRIC_COLUMNS = ("threshold_metric", "Threshold Metric", "Metric")
 THRESHOLD_DISPLAY_COLUMNS = ("threshold_display_name", "Threshold Display Name", "Requirement Name")
 THRESHOLD_MINIMUM_COLUMNS = ("threshold_minimum_value", "Threshold Minimum Value", "Minimum Value", "Minimum")
@@ -228,18 +232,7 @@ def clean_boolean(value: Any, default: bool = True) -> bool:
 
 
 def clean_role(value: Any) -> str | None:
-    role = str(value or "").strip()
-    role_lookup = {
-        "cse": "CSE",
-        "cso": "CSE",
-        "tl": "TL",
-        "team lead": "TL",
-        "team leader": "TL",
-        "supervisor": "CSM",
-        "csm": "CSM",
-        "ah": "AH",
-    }
-    return role_lookup.get(role.lower())
+    return clean_role_name(value)
 
 
 def split_list_text(value: Any) -> list[str]:
@@ -581,8 +574,6 @@ def has_profile_columns(frame: pd.DataFrame) -> bool:
         + TRAINED_SCHEMES_COLUMNS
         + CURRENT_ROLE_COLUMNS
         + TARGET_ROLE_COLUMNS
-        + RESPONSIBILITIES_COLUMNS
-        + TARGET_RESPONSIBILITIES_COLUMNS
         + MANAGER_COLUMNS
     )
     return (
@@ -599,8 +590,9 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
     schemes_col = configured_column(frame, "profile", "trained_schemes", TRAINED_SCHEMES_COLUMNS)
     current_role_col = configured_column(frame, "profile", "current_role", CURRENT_ROLE_COLUMNS)
     target_role_col = configured_column(frame, "profile", "target_role", TARGET_ROLE_COLUMNS)
-    responsibilities_col = configured_column(frame, "profile", "responsibilities", RESPONSIBILITIES_COLUMNS)
-    target_responsibilities_col = configured_column(frame, "profile", "target_responsibilities", TARGET_RESPONSIBILITIES_COLUMNS)
+    handles_member_col = configured_column(frame, "profile", "handles_member_correspondence", HANDLES_MEMBER_CORRESPONDENCE_COLUMNS)
+    handles_projects_col = configured_column(frame, "profile", "handles_projects", HANDLES_PROJECTS_COLUMNS)
+    leads_team_col = configured_column(frame, "profile", "leads_team", LEADS_TEAM_COLUMNS)
 
     if not officer_col:
         raise ValueError("Profile import needs an officer column.")
@@ -609,6 +601,7 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
     profile_rows = []
     org_rows = []
     user_role_rows = []
+    manager_profile_rows = []
     skipped = 0
 
     for _, row in frame.fillna("").iterrows():
@@ -624,17 +617,12 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
         if user_role:
             user_role_rows.append((user_role, officer_id))
         target_role = str(row[target_role_col]).strip() if target_role_col else ""
-        responsibilities = split_list_text(row[responsibilities_col]) if responsibilities_col else []
-        target_responsibilities = split_list_text(row[target_responsibilities_col]) if target_responsibilities_col else []
-
-        if any([current_role, target_role, responsibilities, target_responsibilities]):
+        if any([current_role, target_role]):
             profile_rows.append(
                 (
                     officer_id,
                     current_role,
                     target_role,
-                    dumps(responsibilities),
-                    dumps(target_responsibilities),
                 )
             )
 
@@ -643,6 +631,15 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
         trained_schemes = str(row[schemes_col]).strip() if schemes_col else ""
         if manager_id or team_name or trained_schemes:
             org_rows.append((officer_id, manager_id, team_name, trained_schemes))
+        if handles_member_col or handles_projects_col or leads_team_col:
+            manager_profile_rows.append(
+                (
+                    officer_id,
+                    1 if (handles_member_col and clean_boolean(row[handles_member_col], default=False)) else 0,
+                    1 if (not handles_projects_col or clean_boolean(row[handles_projects_col], default=True)) else 0,
+                    1 if (leads_team_col and clean_boolean(row[leads_team_col], default=False)) else 0,
+                )
+            )
 
     with connect() as conn:
         conn.executemany(
@@ -657,19 +654,11 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO career_profiles
-                  (officer_id, current_role, target_role, responsibilities_json, target_responsibilities_json, updated_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  (officer_id, current_role, target_role, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(officer_id) DO UPDATE SET
                   current_role = COALESCE(NULLIF(excluded.current_role, ''), career_profiles.current_role),
                   target_role = COALESCE(NULLIF(excluded.target_role, ''), career_profiles.target_role),
-                  responsibilities_json = CASE
-                    WHEN excluded.responsibilities_json != '[]' THEN excluded.responsibilities_json
-                    ELSE career_profiles.responsibilities_json
-                  END,
-                  target_responsibilities_json = CASE
-                    WHEN excluded.target_responsibilities_json != '[]' THEN excluded.target_responsibilities_json
-                    ELSE career_profiles.target_responsibilities_json
-                  END,
                   updated_at = CURRENT_TIMESTAMP
                 """,
                 row,
@@ -689,9 +678,23 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
                 """,
                 row,
             )
+        for row in manager_profile_rows:
+            conn.execute(
+                """
+                INSERT INTO manager_profiles
+                  (officer_id, handles_member_correspondence, handles_projects, leads_team, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(officer_id) DO UPDATE SET
+                  handles_member_correspondence = excluded.handles_member_correspondence,
+                  handles_projects = excluded.handles_projects,
+                  leads_team = excluded.leads_team,
+                  updated_at = CURRENT_TIMESTAMP
+                """,
+                row,
+            )
 
     return {
-        "imported": len(profile_rows) + len(org_rows) + len(user_role_rows),
+        "imported": len(profile_rows) + len(org_rows) + len(user_role_rows) + len(manager_profile_rows),
         "skipped": skipped,
     }
 
@@ -881,6 +884,7 @@ def has_readiness_settings_columns(frame: pd.DataFrame) -> bool:
         CORE_WEIGHT_COLUMNS
         + FUNCTIONAL_WEIGHT_COLUMNS
         + CORRESPONDENCE_WEIGHT_COLUMNS
+        + LEADERSHIP_WEIGHT_COLUMNS
     )
     return (
         configured_column(frame, "readiness_settings", "role", READINESS_ROLE_COLUMNS) is not None
@@ -912,26 +916,29 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
     core_col = configured_column(frame, "readiness_settings", "core_weight", CORE_WEIGHT_COLUMNS)
     functional_col = configured_column(frame, "readiness_settings", "functional_weight", FUNCTIONAL_WEIGHT_COLUMNS)
     correspondence_col = configured_column(frame, "readiness_settings", "correspondence_weight", CORRESPONDENCE_WEIGHT_COLUMNS)
+    leadership_col = configured_column(frame, "readiness_settings", "leadership_weight", LEADERSHIP_WEIGHT_COLUMNS)
 
     required_columns = [
         role_col,
         core_col,
         functional_col,
         correspondence_col,
+        leadership_col,
     ]
     if any(column is None for column in required_columns):
-        raise ValueError("Readiness settings import needs role, core, functional, and correspondence weight columns.")
+        raise ValueError("Readiness settings import needs role, core, functional, correspondence, and leadership weight columns.")
 
     settings_by_role = {}
     skipped = 0
     for _, row in frame.fillna("").iterrows():
-        role = clean_role(row[role_col])
+        role = clean_weight_role_name(row[role_col])
         if not role:
             continue
         weights = {
             "core_weight": clean_number(row[core_col]),
             "functional_weight": clean_number(row[functional_col]),
             "correspondence_weight": clean_number(row[correspondence_col]),
+            "leadership_weight": clean_number(row[leadership_col]),
         }
         if any(value is None for value in weights.values()):
             skipped += 1
@@ -946,12 +953,13 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO readiness_settings
-                  (role, core_weight, functional_weight, correspondence_weight, updated_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  (role, core_weight, functional_weight, correspondence_weight, leadership_weight, updated_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(role) DO UPDATE SET
                   core_weight = excluded.core_weight,
                   functional_weight = excluded.functional_weight,
                   correspondence_weight = excluded.correspondence_weight,
+                  leadership_weight = excluded.leadership_weight,
                   updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -959,6 +967,7 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
                     weights["core_weight"],
                     weights["functional_weight"],
                     weights["correspondence_weight"],
+                    weights["leadership_weight"],
                 ),
             )
 
@@ -966,6 +975,7 @@ def import_readiness_settings(frame: pd.DataFrame) -> dict[str, Any]:
 
 
 def import_readiness_thresholds(frame: pd.DataFrame) -> dict[str, Any]:
+    tier_col = configured_column(frame, "readiness_thresholds", "tier", THRESHOLD_TIER_COLUMNS)
     stage_col = configured_column(frame, "readiness_thresholds", "stage", THRESHOLD_STAGE_COLUMNS)
     metric_col = configured_column(frame, "readiness_thresholds", "metric", THRESHOLD_METRIC_COLUMNS)
     display_col = configured_column(frame, "readiness_thresholds", "display_name", THRESHOLD_DISPLAY_COLUMNS)
@@ -977,6 +987,7 @@ def import_readiness_thresholds(frame: pd.DataFrame) -> dict[str, Any]:
     skipped = 0
     for _, row in frame.fillna("").iterrows():
         stage = str(row[stage_col]).strip()
+        tier = str(row[tier_col]).strip() if tier_col and str(row[tier_col]).strip() else "c?4"
         metric = str(row[metric_col]).strip()
         minimum_value = clean_number(row[minimum_col])
         if not stage or not metric or minimum_value is None:
@@ -986,16 +997,16 @@ def import_readiness_thresholds(frame: pd.DataFrame) -> dict[str, Any]:
         unit = str(row[unit_col]).strip() if unit_col and str(row[unit_col]).strip() else "score"
         sequence_value = clean_number(row[sequence_col]) if sequence_col else None
         sequence = int(sequence_value) if sequence_value is not None else 1
-        thresholds[(stage, metric)] = (stage, metric, display_name, minimum_value, unit, sequence)
+        thresholds[(tier, stage, metric)] = (tier, stage, metric, display_name, minimum_value, unit, sequence)
 
     with connect() as conn:
         for threshold in thresholds.values():
             conn.execute(
                 """
                 INSERT INTO readiness_thresholds
-                  (stage, metric, display_name, minimum_value, unit, sequence)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(stage, metric) DO UPDATE SET
+                  (tier, stage, metric, display_name, minimum_value, unit, sequence)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(tier, stage, metric) DO UPDATE SET
                   display_name = excluded.display_name,
                   minimum_value = excluded.minimum_value,
                   unit = excluded.unit,
@@ -1018,7 +1029,7 @@ def import_competency_source_weights(frame: pd.DataFrame) -> dict[str, Any]:
     weights_by_role_and_competency = {}
     skipped = 0
     for _, row in frame.fillna("").iterrows():
-        role = clean_role(row[role_col])
+        role = clean_weight_role_name(row[role_col])
         competency_name = str(row[competency_col]).strip()
         if not role or not competency_name:
             continue
@@ -1031,7 +1042,7 @@ def import_competency_source_weights(frame: pd.DataFrame) -> dict[str, Any]:
         if any(value is None for value in weights.values()):
             skipped += 1
             continue
-        if role == "AH":
+        if role_family(role) == "ah":
             weights = {
                 "audit_weight": 0.0,
                 "scorecard_weight": 0.0,

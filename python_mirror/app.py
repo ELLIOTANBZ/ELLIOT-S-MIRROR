@@ -24,6 +24,7 @@ from repositories import (
 )
 from services.access_control import can_view_team, can_view_user, visible_users
 from services.access_control import SUPERVISOR_ROLES, TEAM_ROLES
+from services.role_model import role_family
 from services.ai_client import ai_is_configured
 from services.appraisal_data import (
     APPRAISAL_CATEGORIES,
@@ -46,6 +47,7 @@ from services.admin_data import (
     save_competency_source_weight,
     save_organisation_assignment,
     save_organisation_assignments,
+    save_manager_profiles,
     save_readiness_settings,
     save_readiness_threshold,
 )
@@ -104,6 +106,7 @@ def render_page(template_name, **page_data):
     nav_user = viewed_user if user and user["role"] == "Admin" and viewed_user and viewed_user["id"] != user["id"] else user
     page_data["viewed_user"] = viewed_user
     page_data["nav_user"] = nav_user
+    page_data["nav_user_can_view_team"] = can_view_team(nav_user) if nav_user else False
     page_data["viewing_options"] = visible
     return render_template(template_name, **page_data)
 
@@ -249,7 +252,7 @@ def readiness_page():
         users=visible,
         officer=officer,
         readiness=readiness_for(officer["id"]),
-        competency_groups=competency_groups(officer["id"]),
+        competency_groups=competency_groups(officer["id"], include_leadership=False),
     )
 
 
@@ -616,7 +619,7 @@ def resolve_visible_officer():
         or session.get("view_as_id")
         or user["id"]
     )
-    if user["role"] == "CSE":
+    if role_family(user["role"]) == "cse":
         officer_id = user["id"]
 
     officer = find_user(officer_id)
@@ -651,6 +654,7 @@ def admin_page():
             flash("Readiness settings saved.", "success")
         elif action == "save_threshold":
             save_readiness_threshold(
+                request.form["tier"],
                 request.form["stage"],
                 request.form["metric"],
                 float(request.form["minimum_value"]),
@@ -681,6 +685,19 @@ def admin_page():
                 )
             save_organisation_assignments(assignments)
             flash("Organisation chart saved.", "success")
+        elif action == "save_manager_profiles":
+            rows = []
+            for officer_id in request.form.getlist("manager_profile_officer_id"):
+                rows.append(
+                    {
+                        "officer_id": officer_id,
+                        "handles_member_correspondence": request.form.get(f"handles_member_correspondence_{officer_id}") == "1",
+                        "handles_projects": request.form.get(f"handles_projects_{officer_id}") == "1",
+                        "leads_team": request.form.get(f"leads_team_{officer_id}") == "1",
+                    }
+                )
+            save_manager_profiles(rows)
+            flash("Manager settings saved.", "success")
         elif action == "add_officer":
             add_officer(
                 request.form["username"],

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+from services.role_model import ALL_USER_ROLES, clean_role_name
 
 load_dotenv()
 
@@ -45,7 +46,10 @@ def init_db(path: Path | None = None) -> None:
       conn.executescript(schema.read_text(encoding="utf-8"))
       migrate_cso_role_to_cse(conn)
       migrate_supervisor_to_csm_ah_roles(conn)
+      migrate_roles_to_new_hierarchy(conn)
       remove_obsolete_readiness_columns(conn)
+      ensure_column(conn, "readiness_settings", "leadership_weight", "REAL NOT NULL DEFAULT 0.25")
+      migrate_readiness_thresholds_by_tier(conn)
       ensure_column(conn, "training_records", "training_type", "TEXT NOT NULL DEFAULT 'Optional'")
       ensure_column(conn, "training_records", "description", "TEXT NOT NULL DEFAULT ''")
       ensure_column(conn, "training_records", "assigned_by", "TEXT NOT NULL DEFAULT 'CPF Board'")
@@ -56,6 +60,92 @@ def init_db(path: Path | None = None) -> None:
       ensure_column(conn, "project_records", "project_role", "TEXT NOT NULL DEFAULT ''")
       ensure_column(conn, "competency_source_weights", "scorecard_weight", "REAL NOT NULL DEFAULT 0.30")
       migrate_competency_source_weights_by_role(conn)
+
+
+def role_check_sql() -> str:
+    roles = ", ".join(f"'{role}'" for role in ALL_USER_ROLES)
+    return f"role TEXT NOT NULL CHECK (role IN ({roles}))"
+
+
+def migrate_roles_to_new_hierarchy(conn: sqlite3.Connection) -> None:
+    users_table = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'"
+    ).fetchone()
+    if not users_table or "'ACSM (TL)'" in users_table["sql"]:
+        return
+
+    rows = conn.execute("SELECT * FROM users").fetchall()
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute("BEGIN")
+        conn.execute(
+            f"""
+            CREATE TABLE users_new (
+              id TEXT PRIMARY KEY,
+              username TEXT NOT NULL UNIQUE,
+              password_hash TEXT NOT NULL,
+              name TEXT NOT NULL,
+              {role_check_sql()},
+              record_version INTEGER NOT NULL DEFAULT 1,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        for row in rows:
+            role = clean_role_name(row["role"]) or "CSE"
+            conn.execute(
+                """
+                INSERT INTO users_new
+                  (id, username, password_hash, name, role, record_version, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["id"],
+                    row["username"],
+                    row["password_hash"],
+                    row["name"],
+                    role,
+                    row["record_version"],
+                    row["updated_at"],
+                ),
+            )
+        conn.execute("DROP TABLE users")
+        conn.execute("ALTER TABLE users_new RENAME TO users")
+
+        role_updates = {
+            "TL": "ACSM (TL)",
+            "CSM": "CSM (CS6)",
+            "AH": "AH (CS6)",
+            "Supervisor": "CSM (CS6)",
+            "CSO": "CSE",
+        }
+        for old_role, new_role in role_updates.items():
+            conn.execute(
+                "UPDATE readiness_settings SET role = ? WHERE role = ?",
+                (new_role, old_role),
+            )
+            conn.execute(
+                "UPDATE competency_source_weights SET role = ? WHERE role = ?",
+                (new_role, old_role),
+            )
+            conn.execute(
+                "UPDATE career_profiles SET current_role = ? WHERE current_role = ?",
+                (new_role, old_role),
+            )
+            conn.execute(
+                "UPDATE career_profiles SET target_role = ? WHERE target_role = ?",
+                (new_role, old_role),
+            )
+        conn.execute(
+            "UPDATE career_profiles SET target_role = 'AH (CS7)' WHERE target_role = 'Senior CSM/AH'"
+        )
+        conn.execute("COMMIT")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 ## One-time migration for databases created before the CSO role was renamed CSE.
@@ -166,7 +256,7 @@ def migrate_supervisor_to_csm_ah_roles(conn: sqlite3.Connection) -> None:
     users_table = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'"
     ).fetchone()
-    if not users_table or ("'CSM'" in users_table["sql"] and "'Supervisor'" not in users_table["sql"]):
+    if not users_table or "'Supervisor'" not in users_table["sql"]:
         return
 
     conn.commit()
@@ -288,6 +378,7 @@ def remove_obsolete_readiness_columns(conn: sqlite3.Connection) -> None:
             "core_weight": "core_weight",
             "functional_weight": "functional_weight",
             "correspondence_weight": "correspondence_weight",
+            "leadership_weight": "leadership_weight" if "leadership_weight" in settings_columns else "0.25",
             "updated_at": "updated_at",
         }
         conn.executescript(
@@ -315,9 +406,10 @@ def remove_obsolete_readiness_columns(conn: sqlite3.Connection) -> None:
 
             CREATE TABLE readiness_settings_new (
               role TEXT PRIMARY KEY,
-              core_weight REAL NOT NULL DEFAULT 0.34,
-              functional_weight REAL NOT NULL DEFAULT 0.33,
-              correspondence_weight REAL NOT NULL DEFAULT 0.33,
+              core_weight REAL NOT NULL DEFAULT 0.25,
+              functional_weight REAL NOT NULL DEFAULT 0.25,
+              correspondence_weight REAL NOT NULL DEFAULT 0.25,
+              leadership_weight REAL NOT NULL DEFAULT 0.25,
               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -386,6 +478,51 @@ def migrate_competency_source_weights_by_role(conn: sqlite3.Connection) -> None:
 
             DROP TABLE competency_source_weights;
             ALTER TABLE competency_source_weights_new RENAME TO competency_source_weights;
+
+            COMMIT;
+            """
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
+def migrate_readiness_thresholds_by_tier(conn: sqlite3.Connection) -> None:
+    columns = conn.execute("PRAGMA table_info(readiness_thresholds)").fetchall()
+    if not columns:
+        return
+    column_names = {column["name"] for column in columns}
+    primary_key_columns = [column["name"] for column in columns if column["pk"]]
+    if "tier" in column_names and primary_key_columns == ["tier", "stage", "metric"]:
+        return
+
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.executescript(
+            """
+            BEGIN;
+
+            CREATE TABLE readiness_thresholds_new (
+              tier TEXT NOT NULL DEFAULT 'c?4',
+              stage TEXT NOT NULL,
+              metric TEXT NOT NULL,
+              display_name TEXT NOT NULL,
+              minimum_value REAL NOT NULL,
+              unit TEXT NOT NULL DEFAULT 'score',
+              sequence INTEGER NOT NULL DEFAULT 1,
+              PRIMARY KEY(tier, stage, metric)
+            );
+
+            INSERT OR IGNORE INTO readiness_thresholds_new
+              (tier, stage, metric, display_name, minimum_value, unit, sequence)
+            SELECT 'c?4', stage, metric, display_name, minimum_value, unit, sequence
+            FROM readiness_thresholds;
+
+            DROP TABLE readiness_thresholds;
+            ALTER TABLE readiness_thresholds_new RENAME TO readiness_thresholds;
 
             COMMIT;
             """

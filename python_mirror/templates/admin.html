@@ -48,11 +48,11 @@
     <h3>Full Daily CSV Columns</h3>
     <p class="muted">The final daily CSV can use these columns:</p>
     <code
-      class="csv-column-list">officer_id, Officer Name, Officer Role, Manager ID, Team Name, Trained Schemes, Current Role, Target Role, Key Responsibilities, Target Responsibilities, upload_date, total_score, Courtesy, Confidentiality, Comprehend Intent, Comply - Email Writing SOG, Correct Information, Complete Information, Clear and Easy, Meaningful Conversations, Cultivate Digital Awareness, Verified Mistake, rating, feedback, ESS Valid, case_id, member_query, officer_response, Title, Provider, Training Type, Status, Assigned Date, Completed Date, Description, Competency Gap, Project Name, Project Managers, What was your role?, Requirements, What Was Done, Project Manager Comments, Readiness Role, Core Weight, Functional Weight, Correspondence Weight, Threshold Stage, Threshold Metric, Threshold Display Name, Threshold Minimum Value, Threshold Unit, Threshold Sequence, Source Role, Source Competency, Source Audit Weight, Source Scorecard Weight, Source Interaction Weight, Source Project Weight</code>
+      class="csv-column-list">officer_id, Officer Name, Officer Role, Manager ID, Team Name, Trained Schemes, Current Role, Target Role, Handles Member Correspondence, Handles Projects, Leads Team, upload_date, total_score, Courtesy, Confidentiality, Comprehend Intent, Comply - Email Writing SOG, Correct Information, Complete Information, Clear and Easy, Meaningful Conversations, Cultivate Digital Awareness, Verified Mistake, rating, feedback, ESS Valid, case_id, member_query, officer_response, Title, Provider, Training Type, Status, Assigned Date, Completed Date, Description, Competency Gap, Project Name, Project Managers, What was your role?, Requirements, What Was Done, Project Manager Comments, Readiness Role, Core Weight, Functional Weight, Correspondence Weight, Leadership Weight, Threshold Tier, Threshold Stage, Threshold Metric, Threshold Display Name, Threshold Minimum Value, Threshold Unit, Threshold Sequence, Source Role, Source Competency, Source Audit Weight, Source Scorecard Weight, Source Interaction Weight, Source Project Weight</code>
     <h3>Threshold Rows</h3>
     <p class="muted">
       Threshold columns are normal CSV columns. Each threshold is one row, for example:
-      Threshold Stage = Meeting Expectations, Threshold Metric = core, Threshold Minimum Value = 65.
+      Threshold Tier = CS4 / C, Threshold Stage = Meeting Expectations, Threshold Metric = core, Threshold Minimum Value = 65.
     </p>
     <h3>Project Updates</h3>
     <p class="muted">
@@ -100,7 +100,7 @@
 <section class="panel settings-intro">
   <p class="eyebrow">MIRROR Part 2 Model</p>
   <h2>Readiness component weights</h2>
-  <p class="muted">These three components form the overall readiness score. The weights must add up to 1.00.</p>
+  <p class="muted">These components form the overall readiness score. The active weights must add up to 1.00.</p>
 </section>
 <section class="settings-stack">
   {% for setting in data.settings %}
@@ -117,6 +117,8 @@
             value="{{ setting.functional_weight }}"></label>
         <label>Correspondence Competency<input name="correspondence_weight" type="number" step="0.0001" min="0" max="1"
             value="{{ setting.correspondence_weight }}"></label>
+        <label>Leadership Competency<input name="leadership_weight" type="number" step="0.0001" min="0" max="1"
+            value="{{ setting.leadership_weight }}"></label>
       </div>
       <div class="settings-actions">
         <p class="weight-total">Total: <strong data-weight-total>1.0000</strong></p>
@@ -130,35 +132,39 @@
 <section class="panel source-weight-panel">
   <h2>Competency source weights</h2>
   <p class="muted">
-    CSE uses project as a bonus. TL and CSM blend project with the other sources. AH uses projects only.
+    CSE uses project as a bonus. ACSM/AM/CSM blend project with the other sources.
   </p>
   {% for role_block in data.source_weight_roles %}
   <details class="source-weight-group">
     <summary>{{ role_block.role }}</summary>
-    {% for group_name, rows in role_block.groups.items() %}
     <form method="post" class="source-weight-list">
-        <input type="hidden" name="action" value="save_competency_source_weight">
-        <input type="hidden" name="tab" value="settings">
-        <input type="hidden" name="role" value="{{ role_block.role }}">
+      <input type="hidden" name="action" value="save_competency_source_weight">
+      <input type="hidden" name="tab" value="settings">
+      <input type="hidden" name="role" value="{{ role_block.role }}">
+    {% for group_name, rows in role_block.groups.items() %}
+      {% if group_name != "Leadership" or role_block.has_leadership %}
+      {% if rows %}
         <h3>{{ group_name }}</h3>
         {% for row in rows %}
         <div class="source-weight-row">
         <input type="hidden" name="competency_name" value="{{ row.competency_name }}">
         <strong>{{ row.competency_name }}</strong>
         <label>Audit<input name="audit_weight" type="number" step="0.0001" min="0" max="1"
-            value="{{ row.audit_weight }}" {% if role_block.role == "AH" %}readonly{% endif %}></label>
+            value="{{ row.audit_weight }}" {% if role_block.project_only %}readonly{% endif %}></label>
         <label>Scorecard<input name="scorecard_weight" type="number" step="0.0001" min="0" max="1"
-            value="{{ row.scorecard_weight }}" {% if role_block.role == "AH" %}readonly{% endif %}></label>
+            value="{{ row.scorecard_weight }}" {% if role_block.project_only %}readonly{% endif %}></label>
         <label>Interactions<input name="interaction_weight" type="number" step="0.0001" min="0" max="1"
-            value="{{ row.interaction_weight }}" {% if role_block.role == "AH" %}readonly{% endif %}></label>
-        <label>{{ "Project Bonus" if role_block.role == "CSE" else "Project" }}<input name="project_weight"
+            value="{{ row.interaction_weight }}" {% if role_block.project_only %}readonly{% endif %}></label>
+        <label>{{ "Project Bonus" if role_block.role in ["Executive", "CSE"] else "Project" }}<input name="project_weight"
             type="number" step="0.0001" min="0" max="1" value="{{ row.project_weight }}"
-            {% if role_block.role == "AH" %}readonly{% endif %}></label>
+            {% if role_block.project_only %}readonly{% endif %}></label>
         </div>
         {% endfor %}
-        <button type="submit">Save {{ role_block.role }} {{ group_name }}</button>
-    </form>
+      {% endif %}
+      {% endif %}
     {% endfor %}
+      <button class="source-weight-save" type="submit">Save {{ role_block.role }}</button>
+    </form>
   </details>
   {% endfor %}
 </section>
@@ -166,22 +172,31 @@
   <h2>State transition requirements</h2>
   <p class="muted">These are the minimum scores required to move into each readiness stage.</p>
   <div class="threshold-groups">
-    {% for stage in ["Meeting Expectations", "Stretch Assignment Ready", "Career Advancement Ready"] %}
+    {% set tier_labels = {"c?4": "CS4 / CX4", "c?5": "CS5 / CX5", "c?6": "CS6 / CX6", "c?7": "CS7 / CX7"} %}
+    {% for tier in ["c?4", "c?5", "c?6", "c?7"] %}
     <div class="threshold-group">
-      <h3>{{ stage }}</h3>
-      {% for row in data.thresholds if row.stage == stage %}
-      <form method="post" class="threshold-row">
-        <input type="hidden" name="action" value="save_threshold">
-        <input type="hidden" name="tab" value="settings">
-        <input type="hidden" name="stage" value="{{ row.stage }}">
-        <input type="hidden" name="metric" value="{{ row.metric }}">
-        <label>{{ row.display_name }}
-          <input name="minimum_value" type="number" step="0.1" min="0" max="100" value="{{ row.minimum_value }}">
-        </label>
-        <span>{{ "%" if row.unit == "percent" else "score" }}</span>
-        <button type="submit">Save</button>
-      </form>
+      <h3>{{ tier_labels[tier] }}</h3>
+      <div class="threshold-stage-grid">
+      {% for stage in ["Meeting Expectations", "Stretch Assignment Ready", "Career Advancement Ready"] %}
+        <div class="threshold-stage-column">
+          <h4>{{ stage }}</h4>
+          {% for row in data.thresholds if row.tier == tier and row.stage == stage %}
+          <form method="post" class="threshold-row">
+            <input type="hidden" name="action" value="save_threshold">
+            <input type="hidden" name="tab" value="settings">
+            <input type="hidden" name="tier" value="{{ row.tier }}">
+            <input type="hidden" name="stage" value="{{ row.stage }}">
+            <input type="hidden" name="metric" value="{{ row.metric }}">
+            <label>{{ row.display_name }}
+              <input name="minimum_value" type="number" step="0.1" min="0" max="100" value="{{ row.minimum_value }}">
+            </label>
+            <span>{{ "%" if row.unit == "percent" else "score" }}</span>
+            <button type="submit">Save</button>
+          </form>
+          {% endfor %}
+        </div>
       {% endfor %}
+      </div>
     </div>
     {% endfor %}
   </div>
@@ -197,10 +212,9 @@
       <label>Username<input name="username" required></label>
       <label>Role
         <select name="role">
-          <option value="CSE">CSE</option>
-          <option value="TL">TL</option>
-          <option value="CSM">CSM</option>
-          <option value="AH">AH</option>
+          {% for role in data.role_options %}
+          <option value="{{ role }}">{{ role }}</option>
+          {% endfor %}
         </select>
       </label>
       <label>Team<input name="team" required></label>
@@ -247,7 +261,7 @@
           <div class="org-assignment-editor">
             <input form="organisation-save-form" type="hidden" name="officer_id" value="{{ node.id }}">
             <select form="organisation-save-form" name="role_{{ node.id }}" aria-label="Role for {{ node.name }}">
-              {% for role in ["CSE", "TL", "CSM", "AH"] %}
+              {% for role in data.role_options %}
               <option value="{{ role }}" {% if role==node.role %}selected{% endif %}>{{ role }}</option>
               {% endfor %}
             </select>
@@ -305,7 +319,7 @@
               <input form="organisation-save-form" type="hidden" name="officer_id" value="{{ officer.id }}">
               <select form="organisation-save-form" name="role_{{ officer.id }}"
                 aria-label="Role for {{ officer.name }}">
-                {% for role in ["CSE", "TL", "CSM", "AH"] %}
+                {% for role in data.role_options %}
                 <option value="{{ role }}" {% if role==officer.role %}selected{% endif %}>{{ role }}</option>
                 {% endfor %}
               </select>
@@ -335,6 +349,27 @@
     </section>
     {% endif %}
   </article>
+</section>
+<section class="panel">
+  <h2>Managers</h2>
+  <p class="muted">For Manager and Senior Manager roles, tick which work areas apply to the individual officer.</p>
+  <form method="post" class="manager-profile-list">
+    <input type="hidden" name="action" value="save_manager_profiles">
+    <input type="hidden" name="tab" value="organisation">
+    {% for officer in data.users if officer.role in data.custom_manager_roles %}
+    <div class="manager-profile-row">
+      <input type="hidden" name="manager_profile_officer_id" value="{{ officer.id }}">
+      <strong>{{ officer.name }}</strong>
+      <span>{{ officer.role }}</span>
+      <label><input type="checkbox" name="handles_member_correspondence_{{ officer.id }}" value="1" {% if officer.handles_member_correspondence %}checked{% endif %}> Handles member correspondence</label>
+      <label><input type="checkbox" name="handles_projects_{{ officer.id }}" value="1" {% if officer.handles_projects %}checked{% endif %}> Projects</label>
+      <label><input type="checkbox" name="leads_team_{{ officer.id }}" value="1" {% if officer.leads_team %}checked{% endif %}> Leads a team</label>
+    </div>
+    {% else %}
+    <p class="muted">No Manager or Senior Manager officers yet.</p>
+    {% endfor %}
+    <button type="submit">Save Manager Settings</button>
+  </form>
 </section>
 {% else %}
 <section class="panel">

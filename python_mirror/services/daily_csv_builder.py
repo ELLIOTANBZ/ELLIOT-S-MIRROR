@@ -5,7 +5,8 @@ from typing import Any
 
 import pandas as pd
 
-from db import connect, loads
+from db import connect
+from services.role_model import role_sort_key
 
 
 def read_uploaded_table(upload) -> pd.DataFrame:
@@ -25,25 +26,24 @@ def admin_config_rows() -> list[dict[str, Any]]:
             """
             SELECT users.id, users.name, users.role,
                    profile.current_role, profile.target_role,
-                   profile.responsibilities_json, profile.target_responsibilities_json,
-                   org.manager_id, org.team_name, org.trained_schemes
+                   org.manager_id, org.team_name, org.trained_schemes,
+                   COALESCE(manager_profiles.handles_member_correspondence, 0) AS handles_member_correspondence,
+                   COALESCE(manager_profiles.handles_projects, 1) AS handles_projects,
+                   COALESCE(manager_profiles.leads_team, 0) AS leads_team
             FROM users
             LEFT JOIN career_profiles profile ON profile.officer_id = users.id
             LEFT JOIN organisation_relationships org ON org.officer_id = users.id
+            LEFT JOIN manager_profiles ON manager_profiles.officer_id = users.id
             ORDER BY users.role, users.name
             """
         ).fetchall()
         settings = conn.execute(
             """
             SELECT * FROM readiness_settings
-            ORDER BY CASE role
-              WHEN 'CSE' THEN 1
-              WHEN 'TL' THEN 2
-              WHEN 'CSM' THEN 3
-              WHEN 'AH' THEN 3
-              ELSE 4 END
+            ORDER BY role
             """
         ).fetchall()
+        settings = sorted(settings, key=lambda row: role_sort_key(row["role"]))
         thresholds = conn.execute(
             """
             SELECT * FROM readiness_thresholds
@@ -57,19 +57,12 @@ def admin_config_rows() -> list[dict[str, Any]]:
         source_weights = conn.execute(
             """
             SELECT * FROM competency_source_weights
-            ORDER BY CASE role
-              WHEN 'CSE' THEN 1
-              WHEN 'TL' THEN 2
-              WHEN 'CSM' THEN 3
-              WHEN 'AH' THEN 4
-              ELSE 5 END,
-              competency_name
+            ORDER BY role, competency_name
             """
         ).fetchall()
+        source_weights = sorted(source_weights, key=lambda row: (*role_sort_key(row["role"]), row["competency_name"]))
 
     for officer in officers:
-        current_responsibilities = loads(officer["responsibilities_json"], [])
-        target_responsibilities = loads(officer["target_responsibilities_json"], [])
         rows.append(
             {
                 "officer_id": officer["id"],
@@ -80,8 +73,9 @@ def admin_config_rows() -> list[dict[str, Any]]:
                 "Trained Schemes": officer["trained_schemes"] or "",
                 "Current Role": officer["current_role"] or officer["role"],
                 "Target Role": officer["target_role"] or "",
-                "Key Responsibilities": "; ".join(current_responsibilities),
-                "Target Responsibilities": "; ".join(target_responsibilities),
+                "Handles Member Correspondence": "Yes" if officer["handles_member_correspondence"] else "",
+                "Handles Projects": "Yes" if officer["handles_projects"] else "",
+                "Leads Team": "Yes" if officer["leads_team"] else "",
             }
         )
 
@@ -92,6 +86,7 @@ def admin_config_rows() -> list[dict[str, Any]]:
                 "Core Weight": setting["core_weight"],
                 "Functional Weight": setting["functional_weight"],
                 "Correspondence Weight": setting["correspondence_weight"],
+                "Leadership Weight": setting["leadership_weight"],
             }
         )
 
@@ -99,6 +94,7 @@ def admin_config_rows() -> list[dict[str, Any]]:
         rows.append(
             {
                 "Threshold Stage": threshold["stage"],
+                "Threshold Tier": threshold["tier"],
                 "Threshold Metric": threshold["metric"],
                 "Threshold Display Name": threshold["display_name"],
                 "Threshold Minimum Value": threshold["minimum_value"],

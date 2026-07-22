@@ -1,0 +1,15 @@
+{
+  "id": "fc9afe163e8847d59aef7a0ed5847812",
+  "table_name": "audit_records",
+  "record_id": "1",
+  "operation": "UPDATE",
+  "payload": {
+    "field_name": "total_score",
+    "new_value": "77",
+    "note": "test"
+  },
+  "status": "Pending",
+  "base_record_version": 1,
+  "submitted_by": "cso001",
+  "submitted_at": "2026-05-26T01:18:23+00:00"
+}

@@ -25,10 +25,18 @@
 
 <section class="dashboard-career-layout">
   <article class="panel dashboard-readiness-meter">
-    <div>
+    <div class="readiness-meter-header">
+      {% set light_class = 'red' if data.career.stage == 'Not Ready' else 'amber' if data.career.stage == 'Meeting Expectations' else 'green' %}
+      <div>
       <p class="eyebrow">Readiness</p>
       <strong>{{ data.career.readiness_percent }}%</strong>
       <span>towards the target role</span>
+      </div>
+      <span class="traffic-light-stack dashboard-traffic-light" title="{{ data.career.stage }}" aria-label="{{ data.career.stage }}">
+        <span class="traffic-light red {{ 'active' if light_class == 'red' else '' }}"></span>
+        <span class="traffic-light amber {{ 'active' if light_class == 'amber' else '' }}"></span>
+        <span class="traffic-light green {{ 'active' if light_class == 'green' else '' }}"></span>
+      </span>
     </div>
     <div class="bar large">
       <div style="width: {{ data.career.readiness_percent }}%"></div>
@@ -39,15 +47,7 @@
     <div class="career-card">
       <p class="eyebrow">Current Role</p>
       <div class="role-title-box">
-        <div class="row-between">
-          <h2>{{ data.career.profile.current_role }}</h2>
-          {% set light_class = 'red' if data.career.stage == 'Not Ready' else 'amber' if data.career.stage == 'Meeting Expectations' else 'green' %}
-          <span class="traffic-light-stack" title="{{ data.career.stage }}" aria-label="{{ data.career.stage }}">
-            <span class="traffic-light red {{ 'active' if light_class == 'red' else '' }}"></span>
-            <span class="traffic-light amber {{ 'active' if light_class == 'amber' else '' }}"></span>
-            <span class="traffic-light green {{ 'active' if light_class == 'green' else '' }}"></span>
-          </span>
-        </div>
+        <h2>{{ data.career.profile.current_role }}</h2>
         <span>Your current position</span>
         <span>Team: {{ data.career.profile.team_name }}</span>
       </div>

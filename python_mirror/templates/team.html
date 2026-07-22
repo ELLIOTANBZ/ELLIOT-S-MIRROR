@@ -6,8 +6,8 @@
     <h1>Team Overview</h1>
     <p>Readiness and career progress for officers you are allowed to view.</p>
   </div>
-  <a class="button-link" href="{{ url_for('changes') }}">Submit Change</a>
 </header>
+
 
 {% if data.show_leadership %}
 <section class="panel leadership-panel">
@@ -25,17 +25,53 @@
     <summary>View leadership competency details</summary>
     <div class="leadership-competency-grid">
       {% for item in data.leadership_competencies %}
-      <article>
-        <div class="row-between"><strong>{{ item.name }}</strong><span>{{ item.score }}</span></div>
-        <small>{{ item.level }}</small>
-        <p>{{ item.description }}</p>
-        <p class="muted">{{ item.development }}</p>
-      </article>
+      <details class="competency-box" data-officer-id="{{ data.leader.id }}" data-competency-name="{{ item.name }}">
+        <summary>
+          <span>{{ item.name }}</span>
+          <strong>{{ item.score }}</strong>
+          <small>{{ item.level }}</small>
+        </summary>
+        <div class="competency-detail">
+          <p>{{ item.description }}</p>
+          <h4>Development summary</h4>
+          <p data-development-summary>{{ item.development }}</p>
+        </div>
+      </details>
       {% endfor %}
     </div>
   </details>
 </section>
 {% endif %}
+
+
+<section class="panel team-ai-summary-panel">
+  <p class="eyebrow">AI Team Summary</p>
+  <h2>Overall team signal</h2>
+  <p>{{ data.team_summary.summary }}</p>
+  <div class="team-summary-grid">
+    <div>
+      <h3>Standouts</h3>
+      <ul class="plain-list">
+        {% for item in data.team_summary.standouts %}
+        <li>{{ item }}</li>
+        {% else %}
+        <li>No specific standouts yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div>
+      <h3>Watchouts</h3>
+      <ul class="plain-list">
+        {% for item in data.team_summary.watchouts %}
+        <li>{{ item }}</li>
+        {% else %}
+        <li>No specific watchouts yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
 
 <section class="panel">
   <h2>Team Overview</h2>
@@ -61,27 +97,32 @@
       <tr class="team-competency-row">
         <td colspan="5">
           <p class="competency-rationale-note">{{ row.evidence_summary }}</p>
-          {% for group_name, items in row.competency_groups.items() %}
-          <details class="team-competency-section">
-            <summary>{{ group_name|title }}</summary>
-            <div class="competency-grid">
-              {% for item in items %}
-              <details class="competency-box" data-officer-id="{{ row.officer.id }}" data-competency-name="{{ item.name }}">
-                <summary>
-                  <span>{{ item.name }}</span>
-                  <strong>{{ item.score }}</strong>
-                  <small>{{ item.level }}</small>
-                </summary>
-                <div class="competency-detail">
-                  <p>{{ item.description }}</p>
-                  <h4>Development summary</h4>
-                  <p data-development-summary>{{ item.development }}</p>
-                </div>
-              </details>
-              {% endfor %}
-            </div>
-          </details>
-          {% endfor %}
+          {% set row_index = loop.index %}
+          <div class="team-competency-tabs">
+            {% for group_name, items in row.competency_groups.items() %}
+            <button type="button" class="team-tab-button" data-team-tab-button="{{ row_index }}-{{ group_name }}">
+              {{ group_name|title }}
+            </button>
+            {% endfor %}
+            {% for group_name, items in row.competency_groups.items() %}
+              <div class="competency-grid team-tab-content" data-team-tab-panel="{{ row_index }}-{{ group_name }}">
+                {% for item in items %}
+                <details class="competency-box" data-officer-id="{{ row.officer.id }}" data-competency-name="{{ item.name }}">
+                  <summary>
+                    <span>{{ item.name }}</span>
+                    <strong>{{ item.score }}</strong>
+                    <small>{{ item.level }}</small>
+                  </summary>
+                  <div class="competency-detail">
+                    <p>{{ item.description }}</p>
+                    <h4>Development summary</h4>
+                    <p data-development-summary>{{ item.development }}</p>
+                  </div>
+                </details>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
         </td>
       </tr>
       {% else %}
@@ -114,6 +155,26 @@
       } catch (error) {
         target.textContent = "Could not load AI development summary.";
       }
+    });
+  });
+
+  document.querySelectorAll(".team-competency-tabs").forEach((tabs) => {
+    const buttons = tabs.querySelectorAll("[data-team-tab-button]");
+    const panels = tabs.querySelectorAll("[data-team-tab-panel]");
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.teamTabButton;
+        const isOpen = button.classList.contains("active");
+
+        buttons.forEach((item) => item.classList.remove("active"));
+        panels.forEach((panel) => panel.classList.remove("active"));
+
+        if (!isOpen) {
+          button.classList.add("active");
+          tabs.querySelector(`[data-team-tab-panel="${key}"]`)?.classList.add("active");
+        }
+      });
     });
   });
 </script>

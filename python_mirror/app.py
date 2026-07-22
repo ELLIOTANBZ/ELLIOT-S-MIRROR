@@ -705,6 +705,7 @@ def admin_page():
                 request.form["role"],
                 request.form["password"],
                 request.form.get("team", ""),
+                request.form.get("trained_schemes", ""),
             )
             flash("Officer added.", "success")
         elif action == "remove_officer":
@@ -733,16 +734,16 @@ def export_org_chart_csv():
     if user["role"] != "Admin":
         abort(403)
 
-    output = StringIO()
+    output = StringIO()         ## create empty csv in memory
     writer = csv.DictWriter(output, fieldnames=org_chart_export_fieldnames())
     writer.writeheader()
     writer.writerows(org_chart_export_rows())
 
     return Response(
-        output.getvalue(),
-        mimetype="text/csv",
+        output.getvalue(),              ## gets the csv text
+        mimetype="text/csv",            ## tells the browser this is a csv file
         headers={
-            "Content-Disposition": "attachment; filename=mirror_org_chart.csv"
+            "Content-Disposition": "attachment; filename=mirror_org_chart.csv"          ## download this as a file named mirror_org_chart.csv
         },
     )
 

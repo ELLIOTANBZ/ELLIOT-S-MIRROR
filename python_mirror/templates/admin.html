@@ -28,7 +28,6 @@
     <p class="muted">The downloaded CSV includes admin configuration from this local MIRROR app:</p>
     <ul class="plain-list">
       <li>Officer names, roles, teams, trained schemes, and reporting lines</li>
-      <li>Career profiles and target roles</li>
       <li>Readiness weights</li>
       <li>Readiness thresholds</li>
       <li>Competency source weights</li>
@@ -48,7 +47,7 @@
     <h3>Full Daily CSV Columns</h3>
     <p class="muted">The final daily CSV can use these columns:</p>
     <code
-      class="csv-column-list">officer_id, Officer Name, Officer Role, Manager ID, Team Name, Trained Schemes, Current Role, Target Role, Handles Member Correspondence, Handles Projects, Leads Team, upload_date, total_score, Courtesy, Confidentiality, Comprehend Intent, Comply - Email Writing SOG, Correct Information, Complete Information, Clear and Easy, Meaningful Conversations, Cultivate Digital Awareness, Verified Mistake, rating, feedback, ESS Valid, case_id, member_query, officer_response, Title, Provider, Training Type, Status, Assigned Date, Completed Date, Description, Competency Gap, Project Name, Project Managers, What was your role?, Requirements, What Was Done, Project Manager Comments, Readiness Role, Core Weight, Functional Weight, Correspondence Weight, Leadership Weight, Threshold Tier, Threshold Stage, Threshold Metric, Threshold Display Name, Threshold Minimum Value, Threshold Unit, Threshold Sequence, Source Role, Source Competency, Source Audit Weight, Source Scorecard Weight, Source Interaction Weight, Source Project Weight</code>
+      class="csv-column-list">officer_id, Officer Name, Officer Role, Manager ID, Team Name, Trained Schemes, Handles Member Correspondence, Handles Projects, Leads Team, upload_date, total_score, Courtesy, Confidentiality, Comprehend Intent, Comply - Email Writing SOG, Correct Information, Complete Information, Clear and Easy, Meaningful Conversations, Cultivate Digital Awareness, Verified Mistake, rating, feedback, ESS Valid, case_id, member_query, officer_response, Title, Provider, Training Type, Status, Assigned Date, Completed Date, Description, Competency Gap, Project Name, Project Managers, What was your role?, Requirements, What Was Done, Project Manager Comments, Readiness Role, Core Weight, Functional Weight, Correspondence Weight, Leadership Weight, Threshold Tier, Threshold Stage, Threshold Metric, Threshold Display Name, Threshold Minimum Value, Threshold Unit, Threshold Sequence, Source Role, Source Competency, Source Audit Weight, Source Scorecard Weight, Source Interaction Weight, Source Project Weight</code>
     <h3>Threshold Rows</h3>
     <p class="muted">
       Threshold columns are normal CSV columns. Each threshold is one row, for example:
@@ -209,7 +208,7 @@
       <input type="hidden" name="action" value="add_officer">
       <input type="hidden" name="tab" value="organisation">
       <label>Name<input name="name" required></label>
-      <label>Username<input name="username" required></label>
+      <label>Officer ID<input name="username" required></label>
       <label>Role
         <select name="role">
           {% for role in data.role_options %}
@@ -218,6 +217,7 @@
         </select>
       </label>
       <label>Team<input name="team" required></label>
+      <label>Trained Schemes<input name="trained_schemes"></label>
       <label>Temporary Password<input name="password" type="password" required></label>
       <button type="submit">Add Officer</button>
     </form>

@@ -17,7 +17,7 @@ from services.competency_scoring import (
     score_interactions_for_officer,
     score_projects_for_officer,
 )
-from services.role_model import clean_role_name, clean_weight_role_name, role_family
+from services.role_model import clean_role_name, clean_weight_role_name, default_target_role, role_family
 
 ## FALLBACK: If config/column_map.local.json does not exist, try these common names.
 DATE_COLUMNS = ("upload_date", "uploadDate", "date", "Date", "Upload Date", "Survey Date")
@@ -26,8 +26,6 @@ OFFICER_ROLE_COLUMNS = ("officer_role", "Officer Role", "role", "Role")
 MANAGER_COLUMNS = ("manager_id", "Manager ID", "reporting_officer", "Reporting Officer", "Reports To", "Manager")
 TEAM_COLUMNS = ("team_name", "Team Name", "team", "Team")
 TRAINED_SCHEMES_COLUMNS = ("trained_schemes", "Trained Schemes", "Schemes", "Trained In")
-CURRENT_ROLE_COLUMNS = ("current_role", "Current Role")
-TARGET_ROLE_COLUMNS = ("target_role", "Target Role")
 HANDLES_MEMBER_CORRESPONDENCE_COLUMNS = ("handles_member_correspondence", "Handles Member Correspondence")
 HANDLES_PROJECTS_COLUMNS = ("handles_projects", "Handles Projects")
 LEADS_TEAM_COLUMNS = ("leads_team", "Leads Team")
@@ -570,10 +568,9 @@ def import_training(frame: pd.DataFrame) -> dict[str, Any]:
 
 def has_profile_columns(frame: pd.DataFrame) -> bool:
     profile_fields = (
-        TEAM_COLUMNS
+        OFFICER_ROLE_COLUMNS
+        + TEAM_COLUMNS
         + TRAINED_SCHEMES_COLUMNS
-        + CURRENT_ROLE_COLUMNS
-        + TARGET_ROLE_COLUMNS
         + MANAGER_COLUMNS
     )
     return (
@@ -588,8 +585,6 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
     manager_col = configured_column(frame, "profile", "manager_id", MANAGER_COLUMNS)
     team_col = configured_column(frame, "profile", "team_name", TEAM_COLUMNS)
     schemes_col = configured_column(frame, "profile", "trained_schemes", TRAINED_SCHEMES_COLUMNS)
-    current_role_col = configured_column(frame, "profile", "current_role", CURRENT_ROLE_COLUMNS)
-    target_role_col = configured_column(frame, "profile", "target_role", TARGET_ROLE_COLUMNS)
     handles_member_col = configured_column(frame, "profile", "handles_member_correspondence", HANDLES_MEMBER_CORRESPONDENCE_COLUMNS)
     handles_projects_col = configured_column(frame, "profile", "handles_projects", HANDLES_PROJECTS_COLUMNS)
     leads_team_col = configured_column(frame, "profile", "leads_team", LEADS_TEAM_COLUMNS)
@@ -610,14 +605,11 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
             skipped += 1
             continue
 
-        current_role = str(row[current_role_col]).strip() if current_role_col else ""
-        if not current_role and role_col:
-            current_role = clean_role(row[role_col]) or ""
         user_role = clean_role(row[role_col]) if role_col else ""
         if user_role:
             user_role_rows.append((user_role, officer_id))
-        target_role = str(row[target_role_col]).strip() if target_role_col else ""
-        if any([current_role, target_role]):
+            current_role = user_role
+            target_role = default_target_role(user_role)
             profile_rows.append(
                 (
                     officer_id,

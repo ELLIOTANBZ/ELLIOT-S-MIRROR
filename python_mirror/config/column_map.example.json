@@ -4,11 +4,7 @@
     "officer_role": "Officer Role",
     "manager_id": "Manager ID",
     "team_name": "Team Name",
-    "trained_schemes": "Trained Schemes",
-    "current_role": "Current Role",
-    "target_role": "Target Role",
-    "responsibilities": "Key Responsibilities",
-    "target_responsibilities": "Target Responsibilities"
+    "trained_schemes": "Trained Schemes"
   },
   "audit": {
     "officer_id": "officer_id",

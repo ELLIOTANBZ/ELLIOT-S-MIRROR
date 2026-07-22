@@ -25,13 +25,11 @@ def admin_config_rows() -> list[dict[str, Any]]:
         officers = conn.execute(
             """
             SELECT users.id, users.name, users.role,
-                   profile.current_role, profile.target_role,
                    org.manager_id, org.team_name, org.trained_schemes,
                    COALESCE(manager_profiles.handles_member_correspondence, 0) AS handles_member_correspondence,
                    COALESCE(manager_profiles.handles_projects, 1) AS handles_projects,
                    COALESCE(manager_profiles.leads_team, 0) AS leads_team
             FROM users
-            LEFT JOIN career_profiles profile ON profile.officer_id = users.id
             LEFT JOIN organisation_relationships org ON org.officer_id = users.id
             LEFT JOIN manager_profiles ON manager_profiles.officer_id = users.id
             ORDER BY users.role, users.name
@@ -71,8 +69,6 @@ def admin_config_rows() -> list[dict[str, Any]]:
                 "Manager ID": officer["manager_id"] or "",
                 "Team Name": officer["team_name"] or "",
                 "Trained Schemes": officer["trained_schemes"] or "",
-                "Current Role": officer["current_role"] or officer["role"],
-                "Target Role": officer["target_role"] or "",
                 "Handles Member Correspondence": "Yes" if officer["handles_member_correspondence"] else "",
                 "Handles Projects": "Yes" if officer["handles_projects"] else "",
                 "Leads Team": "Yes" if officer["leads_team"] else "",

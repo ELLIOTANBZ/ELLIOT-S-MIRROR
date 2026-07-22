@@ -6,7 +6,7 @@ from typing import Any
 
 from werkzeug.security import generate_password_hash
 
-from db import connect, loads, new_id
+from db import connect, loads
 
 from services.competency_scoring import (
     CORE_COMPETENCIES,
@@ -154,17 +154,14 @@ def org_chart_export_rows() -> list[dict[str, Any]]:
     with connect() as conn:
         rows = conn.execute(
             """
-            SELECT users.id, users.username, users.name, users.role,
+            SELECT users.id, users.name, users.role,
                    org.manager_id, org.team_name, org.trained_schemes,
-                   profile.current_role, profile.target_role,
                    COALESCE(manager_profiles.handles_member_correspondence, 0) AS handles_member_correspondence,
                    COALESCE(manager_profiles.handles_projects, 1) AS handles_projects,
                    COALESCE(manager_profiles.leads_team, 0) AS leads_team
             FROM users
             LEFT JOIN organisation_relationships org
               ON org.officer_id = users.id
-            LEFT JOIN career_profiles profile
-              ON profile.officer_id = users.id
             LEFT JOIN manager_profiles
               ON manager_profiles.officer_id = users.id
             WHERE users.role != 'Admin'
@@ -178,14 +175,11 @@ def org_chart_export_rows() -> list[dict[str, Any]]:
         export_rows.append(
             {
                 "officer_id": row["id"],
-                "Username": row["username"],
                 "Officer Name": row["name"],
                 "Officer Role": row["role"],
                 "Manager ID": row["manager_id"] or "",
                 "Team Name": row["team_name"] or "",
                 "Trained Schemes": row["trained_schemes"] or "",
-                "Current Role": row["current_role"] or row["role"],
-                "Target Role": row["target_role"] or "",
                 "Handles Member Correspondence": "Yes" if row["handles_member_correspondence"] else "",
                 "Handles Projects": "Yes" if row["handles_projects"] else "",
                 "Leads Team": "Yes" if row["leads_team"] else "",
@@ -197,14 +191,11 @@ def org_chart_export_rows() -> list[dict[str, Any]]:
 def org_chart_export_fieldnames() -> list[str]:
     return [
         "officer_id",
-        "Username",
         "Officer Name",
         "Officer Role",
         "Manager ID",
         "Team Name",
         "Trained Schemes",
-        "Current Role",
-        "Target Role",
         "Handles Member Correspondence",
         "Handles Projects",
         "Leads Team",
@@ -463,13 +454,13 @@ def save_manager_profiles(rows: list[dict[str, Any]]) -> None:
 
 
 def add_officer(username: str, name: str, role: str, password: str, team_name: str = "", trained_schemes: str = "") -> None:
-    username = username.strip().lower()
+    officer_id = username.strip().lower()
+    username = officer_id
     name = name.strip()
-    if not username or not name or not password:
-        raise ValueError("Username, name, and temporary password are required.")
+    if not officer_id or not name or not password:
+        raise ValueError("Officer ID, name, and temporary password are required.")
     role = clean_editable_role(role)
     with connect() as conn:
-        officer_id = new_id()
         conn.execute(
             """
             INSERT INTO users (id, username, password_hash, name, role)

@@ -16,7 +16,6 @@ from werkzeug.utils import secure_filename
 
 from db import init_db
 from repositories import (
-    authenticate,
     change_password,
     find_user,
     find_user_by_username,
@@ -102,6 +101,13 @@ def windows_user_account():
     return find_user_by_username(windows_username())
 
 
+def admin_account():
+    for user in list_users():
+        if user["role"] == "Admin":
+            return user
+    return None
+
+
 def login_destination(user):
     return "admin_page" if user["role"] == "Admin" else "dashboard"
 
@@ -165,19 +171,26 @@ def login():
             session["user_id"] = user["id"]
             return redirect(url_for(login_destination(user)))
 
-        if action == "admin_login" and not is_admin_windows_user():
-            abort(403)
+        if action == "admin_login":
+            if not is_admin_windows_user():
+                abort(403)
+            user = admin_account()
+            if not user:
+                flash("No Admin account found.", "error")
+                return render_page(
+                    "login.html",
+                    windows_username=windows_username(),
+                    can_choose_admin=is_admin_windows_user(),
+                )
+            session["user_id"] = user["id"]
+            return redirect(url_for("admin_page"))
 
-        user = authenticate(request.form.get("username", ""), request.form.get("password", ""))
-        if not user:
-            flash("Invalid username or password.", "error")
-            return render_page(
-                "login.html",
-                windows_username=windows_username(),
-                can_choose_admin=is_admin_windows_user(),
-            )
-        session["user_id"] = user["id"]
-        return redirect(url_for(login_destination(user)))
+        flash("Choose a login option.", "error")
+        return render_page(
+            "login.html",
+            windows_username=windows_username(),
+            can_choose_admin=is_admin_windows_user(),
+        )
 
     if not is_admin_windows_user():
         user = windows_user_account()

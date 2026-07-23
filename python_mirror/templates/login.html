@@ -10,24 +10,18 @@
     <div class="form-card">
       <form method="post">
         <input type="hidden" name="action" value="windows_login">
-        <button type="submit">Continue as {{ windows_username }}</button>
+        <button type="submit">{{ windows_username }}</button>
       </form>
-      <hr>
       <form method="post">
         <input type="hidden" name="action" value="admin_login">
-        <label>Admin Username
-          <input name="username" autocomplete="username" required>
-        </label>
-        <label>Admin Password
-          <input name="password" type="password" autocomplete="current-password" required>
-        </label>
-        <button type="submit">Sign In as Admin</button>
+        <button type="submit">Admin</button>
       </form>
     </div>
   {% else %}
-    <div class="form-card">
-      <p class="muted">MIRROR will sign you in automatically when your Windows username matches an officer account.</p>
-    </div>
+    <form method="post" class="form-card">
+      <input type="hidden" name="action" value="windows_login">
+      <button type="submit">{{ windows_username }}</button>
+    </form>
   {% endif %}
 </section>
 {% endblock %}

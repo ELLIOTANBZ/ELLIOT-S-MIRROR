@@ -202,6 +202,100 @@ def org_chart_export_fieldnames() -> list[str]:
     ]
 
 
+def settings_export_fieldnames() -> list[str]:
+    return [
+        "Row Type",
+        "Readiness Role",
+        "Core Weight",
+        "Functional Weight",
+        "Correspondence Weight",
+        "Leadership Weight",
+        "Threshold Tier",
+        "Threshold Stage",
+        "Threshold Metric",
+        "Threshold Display Name",
+        "Threshold Minimum Value",
+        "Threshold Unit",
+        "Threshold Sequence",
+        "Source Role",
+        "Source Competency",
+        "Source Audit Weight",
+        "Source Scorecard Weight",
+        "Source Interaction Weight",
+        "Source Project Weight",
+    ]
+
+
+def settings_export_rows() -> list[dict[str, Any]]:
+    ensure_portal_defaults()
+    rows = []
+    with connect() as conn:
+        readiness_rows = conn.execute(
+            """
+            SELECT * FROM readiness_settings
+            ORDER BY role
+            """
+        ).fetchall()
+        threshold_rows = conn.execute(
+            """
+            SELECT * FROM readiness_thresholds
+            ORDER BY tier,
+              CASE stage
+              WHEN 'Meeting Expectations' THEN 1
+              WHEN 'Stretch Assignment Ready' THEN 2
+              ELSE 3 END,
+              sequence
+            """
+        ).fetchall()
+        source_rows = conn.execute(
+            """
+            SELECT * FROM competency_source_weights
+            ORDER BY role, competency_name
+            """
+        ).fetchall()
+
+    for row in sorted(readiness_rows, key=lambda item: role_sort_key(item["role"])):
+        rows.append(
+            {
+                "Row Type": "readiness_settings",
+                "Readiness Role": row["role"],
+                "Core Weight": row["core_weight"],
+                "Functional Weight": row["functional_weight"],
+                "Correspondence Weight": row["correspondence_weight"],
+                "Leadership Weight": row["leadership_weight"],
+            }
+        )
+
+    for row in threshold_rows:
+        rows.append(
+            {
+                "Row Type": "readiness_threshold",
+                "Threshold Tier": row["tier"],
+                "Threshold Stage": row["stage"],
+                "Threshold Metric": row["metric"],
+                "Threshold Display Name": row["display_name"],
+                "Threshold Minimum Value": row["minimum_value"],
+                "Threshold Unit": row["unit"],
+                "Threshold Sequence": row["sequence"],
+            }
+        )
+
+    for row in sorted(source_rows, key=lambda item: (*role_sort_key(item["role"]), item["competency_name"])):
+        rows.append(
+            {
+                "Row Type": "competency_source_weight",
+                "Source Role": row["role"],
+                "Source Competency": row["competency_name"],
+                "Source Audit Weight": row["audit_weight"],
+                "Source Scorecard Weight": row["scorecard_weight"],
+                "Source Interaction Weight": row["interaction_weight"],
+                "Source Project Weight": row["project_weight"],
+            }
+        )
+
+    return rows
+
+
 ## Weights & Thresholds: Save the Admin-edited readiness weights for one role.
 ## values: submitted admin form dict (eg. { "role": "CSE", "core_weight": "0.25", "functional_weight": "0.15", ... })
 def save_readiness_settings(values: dict[str, Any]) -> None:

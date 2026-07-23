@@ -36,7 +36,7 @@ from services.competency_analysis import analyse_officer
 from services.competency_scoring import score_evidence_for_officer, score_projects_for_officer
 from services.daily_csv_builder import build_daily_csv
 from services.dashboard_data import dashboard_portal_data
-from services.local_importer import import_local_file, import_org_chart_file
+from services.local_importer import import_local_file, import_org_chart_file, import_settings_file
 from services.manual_paths import ensure_manual_dirs, incoming_dir, outgoing_changes_dir
 from services.admin_data import (
     add_officer,
@@ -50,6 +50,8 @@ from services.admin_data import (
     save_manager_profiles,
     save_readiness_settings,
     save_readiness_threshold,
+    settings_export_fieldnames,
+    settings_export_rows,
 )
 
 from services.project_data import (
@@ -613,7 +615,7 @@ def export_projects_csv():
         output.getvalue(),
         mimetype="text/csv",
         headers={
-            "Content-Disposition": "attachment; filename=mirror_project_updates.csv"
+            "Content-Disposition": "attachment; filename=mirror_projects.csv"
         },
     )
 
@@ -791,6 +793,16 @@ def admin_page():
             uploaded.save(target)
             result = import_org_chart_file(target)
             flash(result["message"], "success")
+        elif action == "import_settings":
+            uploaded = request.files.get("settings_file")
+            if not uploaded or not uploaded.filename:
+                raise ValueError("Choose a settings CSV or Excel file first.")
+            filename = secure_filename(uploaded.filename)
+            target = incoming_dir() / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            uploaded.save(target)
+            result = import_settings_file(target)
+            flash(result["message"], "success")
     except Exception as exc:
         flash(str(exc), "error")
     ## Redirect makes the browser send a fresh GET request for the selected admin tab.
@@ -814,6 +826,27 @@ def export_org_chart_csv():
         mimetype="text/csv",            ## tells the browser this is a csv file
         headers={
             "Content-Disposition": "attachment; filename=mirror_org_chart.csv"          ## download this as a file named mirror_org_chart.csv
+        },
+    )
+
+
+@app.route("/admin/export-settings")
+@login_required
+def export_settings_csv():
+    user = current_user()
+    if user["role"] != "Admin":
+        abort(403)
+
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=settings_export_fieldnames())
+    writer.writeheader()
+    writer.writerows(settings_export_rows())
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=mirror_settings.csv"
         },
     )
 

@@ -1116,6 +1116,55 @@ def import_competency_source_weights(frame: pd.DataFrame) -> dict[str, Any]:
     return {"imported": len(weights_by_role_and_competency), "skipped": skipped}
 
 
+def import_settings_file(path: Path) -> dict[str, Any]:
+    frame = read_table(path)
+    filled_frame = frame.fillna("")
+    row_type_col = find_column(filled_frame, ("Row Type", "row_type", "Type"))
+
+    def section_frame(*names: str) -> pd.DataFrame:
+        if not row_type_col:
+            return filled_frame
+        allowed = {name.lower() for name in names}
+        return filled_frame[
+            filled_frame[row_type_col].astype(str).str.strip().str.lower().isin(allowed)
+        ]
+
+    parts = []
+    total_imported = 0
+    total_skipped = 0
+
+    readiness_frame = section_frame("readiness_settings", "readiness setting", "settings")
+    if not readiness_frame.empty and has_readiness_settings_columns(readiness_frame):
+        result = import_readiness_settings(readiness_frame)
+        parts.append(f"{result['imported']} readiness setting")
+        total_imported += result["imported"]
+        total_skipped += result["skipped"]
+
+    threshold_frame = section_frame("readiness_threshold", "readiness_thresholds", "threshold")
+    if not threshold_frame.empty and has_readiness_threshold_columns(threshold_frame):
+        result = import_readiness_thresholds(threshold_frame)
+        parts.append(f"{result['imported']} readiness threshold")
+        total_imported += result["imported"]
+        total_skipped += result["skipped"]
+
+    source_frame = section_frame("competency_source_weight", "competency_source_weights", "source weight")
+    if not source_frame.empty and has_competency_source_weight_columns(source_frame):
+        result = import_competency_source_weights(source_frame)
+        parts.append(f"{result['imported']} competency source weight")
+        total_imported += result["imported"]
+        total_skipped += result["skipped"]
+
+    if not parts:
+        raise ValueError(
+            "Settings import needs readiness settings, readiness thresholds, or competency source weight rows."
+        )
+
+    message = "Imported " + ", ".join(parts) + "."
+    if total_skipped:
+        message += f" Ignored {total_skipped} incomplete rows."
+    return {"imported": total_imported, "message": message}
+
+
 def import_daily_admin_file(frame: pd.DataFrame) -> dict[str, Any]:
     parts = []
     total_imported = 0

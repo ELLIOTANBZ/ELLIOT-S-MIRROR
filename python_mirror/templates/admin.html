@@ -100,6 +100,17 @@
   <p class="eyebrow">MIRROR Part 2 Model</p>
   <h2>Readiness component weights</h2>
   <p class="muted">These components form the overall readiness score. The active weights must add up to 1.00.</p>
+  <div class="org-chart-actions">
+    <form method="post" enctype="multipart/form-data" class="inline-upload-form">
+      <input type="hidden" name="action" value="import_settings">
+      <input type="hidden" name="tab" value="settings">
+      <label>Upload Settings CSV
+        <input name="settings_file" type="file" accept=".csv,.xlsx,.xlsm,.xls">
+      </label>
+      <button type="submit">Import Settings</button>
+    </form>
+    <a class="button-link" href="{{ url_for('export_settings_csv') }}">Download Settings CSV</a>
+  </div>
 </section>
 <section class="settings-stack">
   {% for setting in data.settings %}

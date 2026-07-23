@@ -8,7 +8,11 @@ from services.local_importer import (
     import_audit,
     import_ess,
     import_interactions,
+    import_org_chart_file,
+    import_projects,
     import_scorecard,
+    import_settings_file,
+    import_training,
 )
 
 
@@ -16,19 +20,30 @@ from services.local_importer import (
 username = os.getlogin()
 base_path = Path(rf"C:\Users\{username}\SG Govt M365\CPFB-CCC-MST-Correspondence Unit - Documents\CCU SUP\MIRROR")
 
-def get_file(base_path: Path, pattern: str) -> Path:
-    matches = glob.glob(str(base_path / pattern))
-    if not matches:
-        raise FileNotFoundError(f"No file found matching pattern: {pattern}")
-    return Path(matches[0])
 
-# ── FILE PATHS ───────────────────────────────────────────────────────────────
+class OneDriveImportError(RuntimeError):
+    pass
+
 def required_file(filename: str) -> Path:
     path = base_path / filename
     if not path.exists():
-        raise FileNotFoundError(str(path))
+        raise FileNotFoundError(f"{path} does not exist")
     return path
 
+
+def required_pattern(pattern: str) -> Path:
+    matches = glob.glob(str(base_path / pattern))
+    if not matches:
+        raise FileNotFoundError(f"{base_path} is missing a file matching: {pattern}")
+    return Path(matches[0])
+
+
+def read_source_table(path: Path, **kwargs) -> pd.DataFrame:
+    if path.suffix.lower() == ".csv":
+        return pd.read_csv(path, **kwargs)
+    return pd.read_excel(path, **kwargs)
+
+# ── FILE PATHS ───────────────────────────────────────────────────────────────
 
 # ── MASTER OUTPUT ─────────────────────────────────────────────────────────────
 
@@ -48,8 +63,8 @@ AUDIT_SCORE_COLUMNS = {
 
 ## returns CLEANED pandas table from the onedrive file
 def audit_frame_from_onedrive() -> pd.DataFrame:
-    audit_path = required_file("master_output.xlsx")
-    frame = pd.read_excel( audit_path, header=1)
+    audit_path = required_file("master_output.csv")
+    frame = read_source_table(audit_path)
 
     rows = pd.DataFrame()           ## makes an empty table
     rows["officer_id"] = frame["officer_id"]
@@ -70,10 +85,9 @@ def audit_frame_from_onedrive() -> pd.DataFrame:
 
 # ── INTERACTIONS ────────────────────────────────────────────────────────
 def interactions_frame_from_onedrive() -> pd.DataFrame:
-    interactions_path = get_file(base_path, "CCU Final replies*.xlsx")
-    frame = pd.read_excel(
+    interactions_path = required_pattern("CCU Final replies*.csv")
+    frame = read_source_table(
         interactions_path,
-        header=1,  # row 2 is header (0-indexed: row 1)
         usecols=['officer_id', "Case Number", "Date/Time Opened",
                 'Enquiry', 'Case Details', 'Text Body']
     )
@@ -102,8 +116,8 @@ def interactions_frame_from_onedrive() -> pd.DataFrame:
 
 def scorecard_frame_from_onedrive():
     # Read row 1 to extract month
-    ccu_pq_path = get_file(base_path, "CCU PQ*.xlsx")
-    raw_pq = pd.read_excel(ccu_pq_path, header=None)
+    ccu_pq_path = required_pattern("CCU PQ*.csv")
+    raw_pq = read_source_table(ccu_pq_path, header=None)
     month_year = str(raw_pq.iloc[0, 1]).replace("Month:", "").strip()   # e.g. "Apr 2026"
     upload_date = pd.to_datetime(month_year).strftime("%Y-%m-%d")
 
@@ -167,7 +181,7 @@ ESS_VALID_COLUMN = "Is survey rating valid?"
 
 
 def ess_frame_from_file(path: Path) -> pd.DataFrame:
-    frame = pd.read_excel(path, header=1)
+    frame = read_source_table(path)
 
     frame = frame.rename(columns={
         "officer_id": "officer_id",
@@ -181,38 +195,133 @@ def ess_frame_from_file(path: Path) -> pd.DataFrame:
 
 
 # ── TRAINING DATA ─────────────────────────────────────────────────────────────
-def training_frame_from_onedrive() -> tuple[pd.DataFrame, pd.DataFrame]:
-    frame = pd.read_excel(training_path, header=1)
+def training_frame_from_onedrive() -> pd.DataFrame:
+    training_path = required_file("training_data.csv")
+    frame = read_source_table(training_path).fillna("")
 
-    profile_rows = frame.rename(columns={
-        "Training Schemes": "trained_schemes",
-    })[["officer_id", "trained_schemes"]]
+    year_columns = [
+        column
+        for column in frame.columns
+        if str(column).strip().lower().startswith("training records ")
+    ]
 
-    training_rows = []
+    rows = []
+    for _, row in frame.iterrows():
+        officer_id = str(row.get("officer_id", "")).strip()
+        if not officer_id:
+            continue
 
-    for _,row in frame.iterrows():
-        officer_id = row["officer_id"]
-        for year in range(2022, 2027):
-            column = f"Training Records {year}"
-            text = str(row.get(column, "") or "").strip()
+        for column in year_columns:
+            year = str(column).replace("Training Records", "").strip()
+            cell_text = str(row.get(column, "")).strip()
+            if not cell_text:
+                continue
+
+            titles = [
+                item.strip()
+                for item in cell_text.replace("|", "\n").replace(";", "\n").splitlines()
+                if item.strip()
+            ]
+            for title in titles:
+                rows.append(
+                    {
+                        "officer_id": officer_id,
+                        "Title": title,
+                        "Provider": "CPF Board",
+                        "Training Type": "Optional",
+                        "Status": "Completed",
+                        "Assigned Date": f"{year}-01-01" if year.isdigit() else "",
+                        "Completed Date": f"{year}-12-31" if year.isdigit() else "",
+                        "Competency Gap": "",
+                    }
+                )
+
+    return pd.DataFrame(rows)
+
+
+def projects_frame_from_onedrive() -> pd.DataFrame:
+    projects_path = required_file("mirror_projects.csv")
+    return read_source_table(projects_path)
+
+
+def import_onedrive_section(results: dict, name: str, importer):
+    try:
+        results[name] = importer()
+    except Exception as error:
+        raise OneDriveImportError(
+            f"OneDrive import failed at {name}: {error}"
+        ) from error
 
 
 def import_onedrive_files():
     results = {}
 
-    audit_frame = audit_frame_from_onedrive()
-    results["audit"] = import_audit(audit_frame, "upload_date")
+    import_onedrive_section(
+        results,
+        "org chart",
+        lambda: import_org_chart_file(
+            required_file("mirror_org_chart.csv")
+        ),
+    )
 
-    scorecard_frame = scorecard_frame_from_onedrive()
-    results["scorecard"] = import_scorecard(scorecard_frame, "upload_date")
+    import_onedrive_section(
+        results,
+        "settings",
+        lambda: import_settings_file(
+            required_file("mirror_settings.csv")
+        ),
+    )
 
-    ess_frame = ess_frame_from_file(required_file("ESS Verification Report_CCC.xlsx"))
-    results["ess"] = import_ess(ess_frame, "upload_date")
+    import_onedrive_section(
+        results,
+        "audit",
+        lambda: import_audit(audit_frame_from_onedrive(), "upload_date"),
+    )
 
-    tss_frame = ess_frame_from_file(required_file("TSS Verification Report_CCC.xlsx"))
-    results["tss"] = import_ess(tss_frame, "upload_date")
+    import_onedrive_section(
+        results,
+        "scorecard",
+        lambda: import_scorecard(scorecard_frame_from_onedrive(), "upload_date"),
+    )
 
-    interactions_frame = interactions_frame_from_onedrive()
-    results["interactions"] = import_interactions(interactions_frame, "upload_date")
+    import_onedrive_section(
+        results,
+        "ESS",
+        lambda: import_ess(
+            ess_frame_from_file(
+                required_file("ESS Verification Report_CCC.csv")
+            ),
+            "upload_date",
+        ),
+    )
+
+    import_onedrive_section(
+        results,
+        "TSS",
+        lambda: import_ess(
+            ess_frame_from_file(
+                required_file("TSS Verification Report_CCC.csv")
+            ),
+            "upload_date",
+        ),
+    )
+
+    import_onedrive_section(
+        results,
+        "interactions",
+        lambda: import_interactions(interactions_frame_from_onedrive(), "upload_date"),
+    )
+
+    import_onedrive_section(
+        results,
+        "training",
+        lambda: import_training(training_frame_from_onedrive()),
+    )
+
+    import_onedrive_section(
+        results,
+        "projects",
+        lambda: import_projects(projects_frame_from_onedrive()),
+    )
 
     return results

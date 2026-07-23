@@ -19,6 +19,7 @@ from repositories import (
     authenticate,
     change_password,
     find_user,
+    find_user_by_username,
     list_users,
     submit_manual_change,
 )
@@ -79,6 +80,31 @@ ensure_manual_dirs()        ## create local folders if missing
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "local-dev-secret")
 
+
+def windows_username() -> str:
+    return os.getenv("MIRROR_WINDOWS_USERNAME_OVERRIDE", os.getlogin()).strip().lower()
+
+
+def admin_windows_usernames() -> set[str]:
+    configured = os.getenv("MIRROR_ADMIN_WINDOWS_USERS", "")
+    return {
+        item.strip().lower()
+        for item in configured.split(",")
+        if item.strip()
+    }
+
+
+def is_admin_windows_user() -> bool:
+    return windows_username() in admin_windows_usernames()
+
+
+def windows_user_account():
+    return find_user_by_username(windows_username())
+
+
+def login_destination(user):
+    return "admin_page" if user["role"] == "Admin" else "dashboard"
+
 ## gets the logged in user from the session
 def current_user():
     user_id = session.get("user_id")
@@ -126,14 +152,45 @@ def home():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        action = request.form.get("action")
+        if action == "windows_login":
+            user = windows_user_account()
+            if not user:
+                flash(f"No MIRROR account found for Windows user {windows_username()}.", "error")
+                return render_page(
+                    "login.html",
+                    windows_username=windows_username(),
+                    can_choose_admin=is_admin_windows_user(),
+                )
+            session["user_id"] = user["id"]
+            return redirect(url_for(login_destination(user)))
+
+        if action == "admin_login" and not is_admin_windows_user():
+            abort(403)
+
         user = authenticate(request.form.get("username", ""), request.form.get("password", ""))
         if not user:
             flash("Invalid username or password.", "error")
-            return render_page("login.html")
+            return render_page(
+                "login.html",
+                windows_username=windows_username(),
+                can_choose_admin=is_admin_windows_user(),
+            )
         session["user_id"] = user["id"]
-        destination = "admin_page" if user["role"] == "Admin" else "dashboard"
-        return redirect(url_for(destination))
-    return render_page("login.html")
+        return redirect(url_for(login_destination(user)))
+
+    if not is_admin_windows_user():
+        user = windows_user_account()
+        if user:
+            session["user_id"] = user["id"]
+            return redirect(url_for(login_destination(user)))
+        flash(f"No MIRROR account found for Windows user {windows_username()}.", "error")
+
+    return render_page(
+        "login.html",
+        windows_username=windows_username(),
+        can_choose_admin=is_admin_windows_user(),
+    )
 
 
 @app.route("/logout", methods=["POST"])

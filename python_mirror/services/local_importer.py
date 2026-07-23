@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 import re
+from werkzeug.security import generate_password_hash
 
 from db import connect, dumps
 from repositories import utc_now
@@ -22,6 +23,7 @@ from services.role_model import clean_role_name, clean_weight_role_name, default
 ## FALLBACK: If config/column_map.local.json does not exist, try these common names.
 DATE_COLUMNS = ("upload_date", "uploadDate", "date", "Date", "Upload Date", "Survey Date")
 OFFICER_COLUMNS = ("officer_id", "officerId", "username", "Username", "Officer ID", "OfficerId", "User", "Name")
+PROFILE_NAME_COLUMNS = ("name", "Name", "Officer Name", "Full Name", "Assigned Officer/Queue: Full Name")
 OFFICER_ROLE_COLUMNS = ("officer_role", "Officer Role", "role", "Role")
 MANAGER_COLUMNS = ("manager_id", "Manager ID", "reporting_officer", "Reporting Officer", "Reports To", "Manager")
 TEAM_COLUMNS = ("team_name", "Team Name", "team", "Team")
@@ -581,6 +583,7 @@ def has_profile_columns(frame: pd.DataFrame) -> bool:
 
 def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
     officer_col = configured_column(frame, "profile", "officer_id", OFFICER_COLUMNS)
+    name_col = configured_column(frame, "profile", "name", PROFILE_NAME_COLUMNS)
     role_col = configured_column(frame, "profile", "officer_role", OFFICER_ROLE_COLUMNS)
     manager_col = configured_column(frame, "profile", "manager_id", MANAGER_COLUMNS)
     team_col = configured_column(frame, "profile", "team_name", TEAM_COLUMNS)
@@ -593,6 +596,43 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
         raise ValueError("Profile import needs an officer column.")
 
     lookup = user_lookup()
+    users_to_create = []
+    seen_new_users = set()
+
+    for _, row in frame.fillna("").iterrows():
+        raw_officer_id = str(row[officer_col]).strip()
+        if not raw_officer_id:
+            continue
+        officer_id = raw_officer_id.lower()
+        if officer_id in lookup or officer_id in seen_new_users:
+            continue
+
+        name = str(row[name_col]).strip() if name_col else officer_id
+        role = clean_role(row[role_col]) if role_col else "CSE"
+
+        users_to_create.append(
+            (
+                officer_id,
+                officer_id,
+                generate_password_hash("__windows_auto_login_only__"),
+                name or officer_id,
+                role or "CSE",
+            )
+        )
+        seen_new_users.add(officer_id)
+
+    if users_to_create:
+        with connect() as conn:
+            conn.executemany(
+                """
+                INSERT INTO users (id, username, password_hash, name, role)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO NOTHING
+                """,
+                users_to_create,
+            )
+        lookup = user_lookup()
+
     profile_rows = []
     org_rows = []
     user_role_rows = []
@@ -686,7 +726,7 @@ def import_profiles(frame: pd.DataFrame) -> dict[str, Any]:
             )
 
     return {
-        "imported": len(profile_rows) + len(org_rows) + len(user_role_rows) + len(manager_profile_rows),
+        "imported": len(users_to_create) + len(profile_rows) + len(org_rows) + len(user_role_rows) + len(manager_profile_rows),
         "skipped": skipped,
     }
 

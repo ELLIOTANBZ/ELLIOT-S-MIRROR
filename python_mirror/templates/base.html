@@ -9,6 +9,13 @@
 </head>
 
 <body>
+  <div id="page-loading-overlay" class="page-loading-overlay" aria-live="polite" aria-hidden="true">
+    <div class="page-loading-card">
+      <span class="page-loading-spinner" aria-hidden="true"></span>
+      <span>Loading MIRROR...</span>
+    </div>
+  </div>
+
   {% if logged_in_user %}
   <aside class="sidebar">
     <div class="brand">
@@ -151,6 +158,37 @@
     {% block content %}{% endblock %} <!-- Put the child page content here. -->
   </main>
   <script>
+    const pageLoadingOverlay = document.getElementById("page-loading-overlay");
+
+    function showPageLoadingOverlay() {
+      if (!pageLoadingOverlay) return;
+      pageLoadingOverlay.classList.add("visible");
+      pageLoadingOverlay.setAttribute("aria-hidden", "false");
+    }
+
+    window.addEventListener("pageshow", () => {
+      if (!pageLoadingOverlay) return;
+      pageLoadingOverlay.classList.remove("visible");
+      pageLoadingOverlay.setAttribute("aria-hidden", "true");
+    });
+
+    document.querySelectorAll("a[href]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const href = link.getAttribute("href") || "";
+        if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+        const url = new URL(href, window.location.href);
+        if (url.pathname.includes("export")) return;
+        showPageLoadingOverlay();
+      });
+    });
+
+    document.querySelectorAll("form").forEach((form) => {
+      form.addEventListener("submit", () => {
+        showPageLoadingOverlay();
+      });
+    });
+
     document.querySelectorAll("form[data-ai-loading]").forEach((form) => {
       form.addEventListener("submit", () => {
         const button = form.querySelector("button[type='submit'], button:not([type])");
